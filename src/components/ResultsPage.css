@@ -1,0 +1,194 @@
+/* src/components/ResultsPage.css */
+
+/* Specific styles for the ResultsPage container */
+
+
+/* Styles for the main content area where markdown is rendered */
+.results-content {
+    background-color: #f8f9fa;
+    border: 1px solid #e2e6ea;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 25px;
+    max-height: 400px; /* Limit height for scrollability on mobile */
+    overflow-y: auto; /* Enable vertical scrolling */
+    text-align: left; /* Text alignment for markdown content */
+    font-size: 1em; /* Ensure good base font size */
+    line-height: 1.7; /* Improve line spacing */
+    color: #444;
+}
+
+/* KaTeX specific styles (rendering math) */
+.katex-display {
+    margin-top: 1em;
+    margin-bottom: 1em;
+    overflow-x: auto; /* Allow horizontal scroll for wide equations */
+    padding: 0 5px; /* Add some padding */
+}
+
+.katex {
+    font-size: 1.1em; /* Make inline math slightly easier to read */
+}
+
+/* Styling for Markdown headings within results content */
+.results-content h1,
+.results-content h2,
+.results-content h3,
+.results-content h4,
+.results-content h5,
+.results-content h6 {
+    color: #2c3e50; /* Match main heading color */
+    margin-top: 1.5em;
+    margin-bottom: 0.8em;
+    font-weight: 600;
+}
+
+.results-content h1 { font-size: 1.8em; }
+.results-content h2 { font-size: 1.5em; }
+.results-content h3 { font-size: 1.3em; }
+.results-content h4 { font-size: 1.1em; }
+
+/* Markdown specific list styles */
+.results-content ul,
+.results-content ol {
+    text-align: left; /* Align list items to the left */
+    padding-left: 20px;
+    margin-bottom: 1em;
+}
+
+.results-content li {
+    margin-bottom: 0.5em;
+}
+
+/* Blockquotes */
+.results-content blockquote {
+    border-left: 4px solid #ccc;
+    padding-left: 15px;
+    margin: 1em 0;
+    color: #666;
+    font-style: italic;
+}
+
+/* Links */
+.results-content a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.results-content a:hover {
+    text-decoration: underline;
+}
+
+/* Tables (basic styling) */
+.results-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1em 0;
+}
+
+.results-content th,
+.results-content td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+
+.results-content th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+
+/* Inline code styling */
+.results-content code:not(pre code) { /* Target inline code, not code within pre blocks */
+    background-color: #e0e0e0;
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    font-size: 0.85em;
+    color: #c7254e; /* A distinct color for inline code */
+}
+
+/* NEW: Styles for the export section */
+.export-section {
+    margin-top: 20px;
+    margin-bottom: 20px; /* Space between export area and the 'Start New Request' button */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px; /* Space between elements in this section */
+    width: 100%; /* Take full width of parent container */
+}
+
+.download-area {
+    background-color: #e6ffed; /* Light green background for download success */
+    border: 1px solid #28a745;
+    border-radius: 8px;
+    padding: 15px;
+    width: 100%;
+    max-width: 300px; /* Constrain width of download area */
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.download-area p {
+    margin-bottom: 10px;
+    font-weight: 500;
+    color: #218838;
+}
+
+.download-button {
+    background-color: #007bff; /* Use primary button style for download */
+    color: white;
+    text-decoration: none; /* Remove underline from link */
+    display: inline-flex; /* To center icon and text */
+    justify-content: center;
+    align-items: center;
+    /* Override global button width/margin for this specific use case */
+    width: auto;
+    min-width: 180px;
+    margin: 0 auto; /* Center button within its container */
+    padding: 12px 20px; /* Slightly smaller padding for a secondary action button */
+    font-size: 1em;
+}
+
+.download-button:hover {
+    background-color: #0056b3;
+}
+
+.download-note {
+    font-size: 0.8em;
+    color: #6c757d;
+    margin-top: 10px;
+    margin-bottom: 0;
+}
+
+.export-error-message {
+    color: #d9363e; /* Red color for error text */
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+/* Small spinner specifically for export loading */
+.small-spinner {
+    width: 25px;
+    height: 25px;
+    border-width: 3px;
+    margin: 0; /* Override default spinner margin for a compact placement */
+}
+
+
+/* Responsive adjustments for larger screens (e.g., tablets/desktops) */
+@media (min-width: 768px) {
+    .results-content {
+        max-height: 500px; /* Allow more content before scrolling */
+    }
+
+    .export-section {
+        flex-direction: row; /* Layout horizontally on larger screens */
+        justify-content: center;
+        flex-wrap: wrap; /* Allow wrapping if items are too wide */
+    }
+    .download-area {
+        max-width: 400px; /* Increase max width for download area on larger screens */
+    }
+}
