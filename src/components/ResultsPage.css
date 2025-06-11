@@ -192,3 +192,50 @@
         max-width: 400px; /* Increase max width for download area on larger screens */
     }
 }
+
+/* Add to your CSS file, e.g., ResultsPage.css or App.css */
+.section-divider {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+}
+
+.voice-explanation-section h4,
+.export-section h4 {
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.audio-error-message {
+  color: #D8000C; /* Error red */
+  background-color: #FFD2D2; /* Light red background */
+  border: 1px solid #D8000C;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.loading-audio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.audio-player-container audio {
+  width: 100%;
+  margin-top: 5px;
+}
+
+.button.accent-button {
+  background-color: #007bff; /* Example accent color */
+  color: white;
+}
+.button.accent-button:hover {
+  background-color: #0056b3;
+}
+
+.button-full-width {
+  width: 100%;
+  margin-top: 20px;
+}
