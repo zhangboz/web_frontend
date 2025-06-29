@@ -1,4 +1,3 @@
-// src/components/ResultsPage.js
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -26,201 +25,158 @@ const CodeBlock = ({ inline, className, children }) => {
   return <code className={className}>{children}</code>;
 };
 
-function ResultsPage({ response, onReset, backendUrl }) {
-  // Existing state for document export
+// --- FIX START: Accept isBottomNavVisible prop ---
+function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubscribe, audioCache, setAudioCache, isBottomNavVisible }) {
+// --- FIX END ---
   const [downloadUrl, setDownloadUrl] = useState(null);
   const [exportFileName, setExportFileName] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState(null);
-
-  // New state for voice explanation
-  const [isFetchingAudio, setIsFetchingAudio] = useState(false);
   const [audioUrl, setAudioUrl] = useState(null);
-  const [audioError, setAudioError] = useState(null);
 
-  const reply1Content = (response && response.reply1 && typeof response.reply1 === 'string')
-    ? response.reply1
-    : "";
-  const reply2Content = (response && response.reply2 && typeof response.reply2 === 'string')
-    ? response.reply2
-    : null;
-
-  const markdownToDisplay = reply1Content.trim() !== ''
-    ? reply1Content
-    : "未能获取到有效的 AI 结果 (reply1)。";
+  const hasActiveSubscription = user && user.subscriptionStatus === 'active';
+  
+  const reply1Content = (response?.reply1 && typeof response.reply1 === 'string') ? response.reply1 : "";
+  const reply2Content = (response?.reply2 && typeof response.reply2 === 'string') ? response.reply2 : null;
+  const markdownToDisplay = reply1Content.trim() !== '' ? reply1Content : "Failed to get a valid AI result.";
   const markdownToExport = reply1Content;
 
+  const cacheEntry = reply2Content ? audioCache.get(reply2Content) : null;
+  const isFetchingAudio = cacheEntry?.status === 'pending';
+  const audioBlob = cacheEntry?.status === 'success' ? cacheEntry.data : null;
+  const audioError = cacheEntry?.status === 'error' ? cacheEntry.error : null;
+
   useEffect(() => {
-    let currentAudioUrl = audioUrl;
+    let objectUrl = null;
+    if (audioBlob) {
+      objectUrl = URL.createObjectURL(audioBlob);
+      setAudioUrl(objectUrl);
+      console.log("Audio URL created:", objectUrl);
+    } else {
+      setAudioUrl(null);
+    }
+
     return () => {
-      if (currentAudioUrl) {
-        URL.revokeObjectURL(currentAudioUrl);
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        console.log("Audio URL revoked:", objectUrl);
       }
     };
-  }, [audioUrl]);
+  }, [audioBlob]);
 
-  const handleExportToWord = async () => {
+  const handlePremiumFeature = (featureAction, featureName) => {
+    if (!user) {
+      return onRequestLogin();
+    }
+    if (!hasActiveSubscription) {
+      if(window.confirm(`'${featureName}' is a premium feature. Would you like to subscribe now?`)) {
+        onSubscribe();
+      }
+      return;
+    }
+    featureAction();
+  };
+
+  const doExport = async () => {
     setIsExporting(true);
     setDownloadUrl(null);
     setExportError(null);
     try {
-      const backendExportUrl = `${backendUrl}/api/export/docx`;
-      const requestBody = { markdownText: markdownToExport };
-      const fetchOptions = {
+      const res = await fetch(`${backendUrl}/api/export/docx`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      };
-      const res = await fetch(backendExportUrl, fetchOptions);
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ markdownText: markdownToExport }),
+      });
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.message || 'Failed to export document. Server response not ok.');
+        throw new Error(errorData.message || 'Failed to export document.');
       }
       const data = await res.json();
       if (data.success) {
         setDownloadUrl(data.downloadUrl);
         setExportFileName(data.fileName || 'document.docx');
       } else {
-        throw new Error(data.message || 'Export process failed on the server.');
+        throw new Error(data.message || 'Export process failed.');
       }
-    } catch (error)
-    {
+    } catch (error) {
       console.error('Export error:', error);
-      setExportError(`导出失败: ${error.message}`);
+      setExportError(`Export failed: ${error.message}`);
     } finally {
       setIsExporting(false);
     }
   };
 
-  const handleExplainInVoice = async () => {
-    if (!reply2Content) {
-      setAudioError("No text available to synthesize for voice explanation.");
+  const doVoiceExplain = async () => {
+    if (!reply2Content || isFetchingAudio) {
       return;
     }
-    setIsFetchingAudio(true);
-    setAudioUrl(null);
-    setAudioError(null);
+    
+    setAudioCache(prevCache => new Map(prevCache).set(reply2Content, { status: 'pending' }));
+
     try {
-      const speechApiUrl = `${backendUrl}/api/speech`;
-      const requestBody = {
-        text: reply2Content,
-        voice: "",
-      };
-      const response = await fetch(speechApiUrl, {
+      const response = await fetch(`${backendUrl}/api/speech`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'audio/wav',
-        },
-        body: JSON.stringify(requestBody),
+        headers: { 'Content-Type': 'application/json', 'Accept': 'audio/wav', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ text: reply2Content, voice: "" }),
       });
+
       if (!response.ok) {
-        let errorMessage = `语音合成失败。状态码: ${response.status}`;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-        } catch (e) {
-          try {
-            const errorText = await response.text();
-            errorMessage = errorText || errorMessage;
-          } catch (e2) { /* ignore */ }
-        }
-        throw new Error(errorMessage);
+        const errorData = await response.json().catch(() => ({ message: 'Synthesis failed.' }));
+        throw new Error(errorData.message);
       }
-      const audioBlob = await response.blob();
-      if (audioBlob.type && !audioBlob.type.startsWith('audio/')) {
-         console.warn(`Unexpected audio blob type: ${audioBlob.type}. Expected 'audio/wav' or similar.`);
-      }
-      const newAudioUrl = URL.createObjectURL(audioBlob);
-      setAudioUrl(newAudioUrl);
+
+      const newAudioBlob = await response.blob();
+      setAudioCache(prevCache => new Map(prevCache).set(reply2Content, { status: 'success', data: newAudioBlob }));
     } catch (error) {
       console.error('Error fetching speech:', error);
-      setAudioError(`${error.message}`);
-    } finally {
-      setIsFetchingAudio(false);
+      setAudioCache(prevCache => new Map(prevCache).set(reply2Content, { status: 'error', error: error.message }));
     }
   };
 
   return (
-    <div className="container results-page">
-      <h2>Results</h2>
-      <div className="results-content markdown-body">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkMath]}
-          rehypePlugins={[rehypeKatex]}
-          components={{ code: CodeBlock }}
-        >
-          {markdownToDisplay}
-        </ReactMarkdown>
-      </div>
-
-      {reply2Content && (
-        <div className="voice-explanation-section section-divider">
-          <h4>Voice Explanation</h4>
-          {audioError && <p className="error-message audio-error-message">{audioError}</p>}
-          {!audioUrl && !isFetchingAudio && (
-            <button
-              onClick={handleExplainInVoice}
-              className="button accent-button"
-              disabled={!reply2Content}
-            >
-              🎤 Explain in Voice
-            </button>
-          )}
-          {isFetchingAudio && (
-            <div className="loading-audio">
-              <div className="spinner small-spinner"></div>
-              <span>Synthesizing audio...</span>
-            </div>
-          )}
-          {audioUrl && (
-            <div className="audio-player-container">
-              <audio
-                controls
-                src={audioUrl}
-                id="voice-explanation-player"
-                controlsList="nodownload" // <<< THE CHANGE IS HERE
-              >
-                Your browser does not support the audio element.
-              </audio>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="export-section section-divider">
-        <h4>Document Export</h4>
-        {!downloadUrl && !exportError && (
-          <button
-            onClick={handleExportToWord}
-            className="button secondary-button"
-            disabled={isExporting || markdownToDisplay === "未能获取到有效的 AI 结果 (reply1)。"}
+    <div className="results-page-layout">
+      <div className="results-scroll-container">
+        <h2>Results</h2>
+        <div className="results-content markdown-body">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[rehypeKatex]}
+            components={{ code: CodeBlock }}
           >
-            {isExporting ? 'Exporting to Word...' : '📄 Export to Word'}
-          </button>
-        )}
-        {isExporting && <div className="spinner small-spinner"></div>}
-        {downloadUrl && (
-          <div className="download-area">
-            <p>Your document is ready:</p>
-            <a
-              href={downloadUrl}
-              download={exportFileName}
-              className="button download-button"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              ⬇️ Download {exportFileName}
-            </a>
-            <p className="download-note">This file will be available for ~5 minutes.</p>
+            {markdownToDisplay}
+          </ReactMarkdown>
+        </div>
+      </div>
+      
+      {/* --- FIX START: Conditionally apply a class based on the prop --- */}
+      <div className={`results-action-bar-vertical ${isBottomNavVisible ? 'with-nav' : ''}`}>
+      {/* --- FIX END --- */}
+        {reply2Content && (
+          <div className="action-item-vertical">
+            {audioUrl && !isFetchingAudio ? (
+              <audio controls src={audioUrl} className="full-width-audio-player"></audio>
+            ) : (
+              <button onClick={() => handlePremiumFeature(doVoiceExplain, 'Voice Explanation')} className="button" disabled={isFetchingAudio}>
+                {isFetchingAudio ? <div className="spinner-small-light"></div> : '🎤 Explain in Voice'}
+              </button>
+            )}
+            {audioError && <p className="error-message small-error">{audioError}</p>}
           </div>
         )}
-        {exportError && <p className="error-message export-error-message">{exportError}</p>}
-      </div>
 
-      <button onClick={onReset} className="button primary-button button-full-width">
-        Start New Request
-      </button>
+        <div className="action-item-vertical">
+          {downloadUrl ? (
+             <a href={downloadUrl} download={exportFileName} className="button primary-button" target="_blank" rel="noopener noreferrer">
+              ⬇️ Download Document
+            </a>
+          ) : (
+            <button onClick={() => handlePremiumFeature(doExport, 'Export to Word')} className="button secondary-button" disabled={isExporting}>
+              {isExporting ? <div className="spinner-small-dark"></div> : '📄 Export to Word'}
+            </button>
+          )}
+          {exportError && <p className="error-message small-error">{exportError}</p>}
+        </div>
+      </div>
     </div>
   );
 }
