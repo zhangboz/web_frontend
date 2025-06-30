@@ -16,7 +16,30 @@ import BottomNav from './components/BottomNav';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
 
-// --- HELPER FUNCTIONS FOR STATE MANAGEMENT ---
+// --- HELPER FUNCTIONS FOR STATE & ID MANAGEMENT ---
+
+// Simple function to generate a unique ID for anonymous users
+const generateUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    // FIX: Added parentheses to satisfy the 'no-mixed-operators' ESLint rule.
+    // This clarifies the order of operations for bitwise operators.
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : ((r & 0x3) | 0x8);
+    return v.toString(16);
+  });
+};
+
+
+// Gets existing anonymous ID or creates a new one and stores it
+const getAnonymousId = () => {
+  let anonId = localStorage.getItem('anonymousId');
+  if (!anonId) {
+    anonId = generateUUID();
+    localStorage.setItem('anonymousId', anonId);
+  }
+  return anonId;
+};
+
 const saveSnapshot = (flowState, data) => {
   try {
     const snapshot = { flowState, data };
@@ -99,6 +122,7 @@ function App() {
   const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    // We keep the anonymousId in case they log out and want to continue using the app
     sessionStorage.removeItem('appSnapshot');
     setToken(null);
     setUser(null);
@@ -248,6 +272,13 @@ function App() {
     setFlowState('waiting');
     const formData = new FormData();
     formData.append('homeworkImage', selectedFile);
+
+    // Add anonymous ID if user is not logged in
+    if (!token) {
+      const anonymousId = getAnonymousId();
+      formData.append('anonymousId', anonymousId);
+    }
+    
     try {
       const response = await fetch(`${BACKEND_URL}/api/process-homework`, {
         method: 'POST', 
@@ -350,9 +381,7 @@ function App() {
         onSubscribe={handleSubscribe} 
         audioCache={audioCache}
         setAudioCache={setAudioCache}
-        // --- FIX START: Tell ResultsPage if BottomNav is visible ---
         isBottomNavVisible={showBottomNav}
-        // --- FIX END ---
       />;
     }
 
