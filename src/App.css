@@ -32,7 +32,7 @@ html, body, #root {
 .main-content {
   flex: 1;
   overflow-y: auto;
-  /* Space for the bottom nav */
+  /* Space for the bottom nav on mobile */
   padding-bottom: 85px; 
 }
 
@@ -264,4 +264,26 @@ p {
 .google-button img {
   width: 18px;
   height: 18px;
+}
+
+/* --- Desktop Styles --- */
+@media (min-width: 768px) {
+  /* Keep the nav at the top of the DOM */
+  .app-layout {
+    flex-direction: column; 
+  }
+  
+  /* Add padding-top to prevent content from being hidden by the sticky nav */
+  .main-content {
+    padding-top: 60px; /* Height of the top nav */
+    padding-bottom: 40px; /* Reset mobile padding */
+  }
+
+  /* Give containers more space on desktop */
+  .container {
+    max-width: 600px;
+    padding: 40px;
+    margin-top: 40px;
+    margin-bottom: 40px;
+  }
 }

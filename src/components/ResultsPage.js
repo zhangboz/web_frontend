@@ -25,9 +25,7 @@ const CodeBlock = ({ inline, className, children }) => {
   return <code className={className}>{children}</code>;
 };
 
-// --- FIX START: Accept isBottomNavVisible prop ---
 function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubscribe, audioCache, setAudioCache, isBottomNavVisible }) {
-// --- FIX END ---
   const [downloadUrl, setDownloadUrl] = useState(null);
   const [exportFileName, setExportFileName] = useState('');
   const [isExporting, setIsExporting] = useState(false);
@@ -136,7 +134,9 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
   return (
     <div className="results-page-layout">
       <div className="results-scroll-container">
-        <h2>Results</h2>
+        {/* --- FIX START: Removed the h2 title for better desktop alignment --- */}
+        {/* <h2>Results</h2> */}
+        {/* --- FIX END --- */}
         <div className="results-content markdown-body">
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}
@@ -148,9 +148,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
         </div>
       </div>
       
-      {/* --- FIX START: Conditionally apply a class based on the prop --- */}
       <div className={`results-action-bar-vertical ${isBottomNavVisible ? 'with-nav' : ''}`}>
-      {/* --- FIX END --- */}
         {reply2Content && (
           <div className="action-item-vertical">
             {audioUrl && !isFetchingAudio ? (

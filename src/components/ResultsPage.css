@@ -111,16 +111,12 @@
   gap: 15px;
   padding: 20px;
   z-index: 1000;
-  /* --- FIX START: Add transition for smoother movement --- */
   transition: bottom 0.2s ease-in-out;
-  /* --- FIX END --- */
 }
 
-/* --- FIX START: New rule to move the action bar up when the nav is present --- */
 .results-action-bar-vertical.with-nav {
   bottom: 65px; /* Height of the BottomNav */
 }
-/* --- FIX END --- */
 
 .action-item-vertical {
   width: 100%;
@@ -157,4 +153,66 @@
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* --- Desktop Styles --- */
+@media (min-width: 992px) {
+  /* Create a two-column layout */
+  .results-page-layout {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 30px;
+    max-width: 1200px;
+    margin: 40px auto;
+    padding: 0 20px;
+    height: auto;
+    background: transparent;
+  }
+
+  /* Main results content area */
+  .results-scroll-container {
+    flex: 3; /* Take up more space */
+    min-width: 0; /* Fix flexbox shrinking issues */
+    overflow-y: visible; /* No longer needs to scroll independently */
+    padding: 0; /* Reset mobile padding */
+  }
+  
+  .results-content {
+      background-color: #fff;
+      padding: 30px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+  }
+
+  /* Action bar becomes a sticky sidebar panel */
+  .results-action-bar-vertical,
+  .results-action-bar-vertical.with-nav { /* Ensure .with-nav is also overridden */
+    flex: 1;
+    position: sticky;
+    top: 80px; /* Stick below the top nav (60px) with some margin (20px) */
+    bottom: auto; /* Reset mobile positioning */
+    left: auto;
+    right: auto;
+    z-index: 1;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 25px;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    transition: none; /* Remove transition */
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+  }
+
+  /* --- FIX START: Add a title to the action bar using a pseudo-element --- */
+  .results-action-bar-vertical::before {
+    content: 'Tools & Actions';
+    display: block;
+    font-size: 1.1em;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e9ecef;
+  }
+  /* --- FIX END --- */
 }

@@ -40,12 +40,23 @@ function AccountPage({ user, isUpdatingSubscription, onLogout, onSubscribe, onCa
       );
     }
 
+    const premiumFeatures = (
+      <div className="premium-features-promo">
+          <h4>What you get with Premium:</h4>
+          <ul className="premium-features-list">
+              <li>✅ Get step-by-step audio explanations from an AI Tutor.</li>
+              <li>✅ Export solutions to editable Word documents for your notes.</li>
+              <li>✅ Unlock advanced analysis for complex problems (Coming Soon!).</li>
+          </ul>
+      </div>
+    );
+
     if (user.subscriptionStatus === 'incomplete') {
         return (
           <div className="subscription-card">
                 <p className="status-text incomplete">Status: Payment Incomplete ⚠️</p>
                 <p>Please complete your payment to activate your subscription.</p>
-                {/* MODIFIED: Pass the correct return path */}
+                {premiumFeatures}
                 <button onClick={() => onSubscribe('/account')} className="button primary-button">
                     Complete Payment
                 </button>
@@ -57,7 +68,7 @@ function AccountPage({ user, isUpdatingSubscription, onLogout, onSubscribe, onCa
       <div className="subscription-card">
         <p className="status-text inactive">Status: Inactive ❌</p>
         <p>Unlock all features by subscribing to a premium plan.</p>
-        {/* MODIFIED: Pass the correct return path */}
+        {premiumFeatures}
         <button onClick={() => onSubscribe('/account')} className="button primary-button">
           Subscribe Now
         </button>

@@ -13,6 +13,18 @@
     z-index: 1000;
 }
 
+.nav-title {
+    display: none; /* Hide title on mobile */
+}
+
+.nav-items-container {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+}
+
 .nav-item {
     background: none;
     border: none;
@@ -42,13 +54,85 @@
     color: #007bff;
 }
 
-/* Override general button styles */
 .nav-item {
-    padding: 0;
-    margin: 0;
-    width: auto;
+    padding: 0; margin: 0; width: auto;
 }
 .nav-item:hover {
-    background-color: #f8f8f8;
-    transform: none;
+    background-color: #f8f8f8; transform: none;
+}
+
+/* --- Desktop Styles --- */
+@media (min-width: 768px) {
+    /* --- FIX START: Making the Navbar Larger and Bolder --- */
+    .bottom-nav {
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        height: 80px; /* Increased height from 64px */
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 40px; /* Increased horizontal padding */
+
+        /* The "Glass" Effect */
+        background: rgba(255, 255, 255, 0.85);
+        -webkit-backdrop-filter: blur(16px); /* Stronger blur */
+        backdrop-filter: blur(16px);
+
+        /* Subtle bottom border for definition */
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        
+        width: 100%;
+        box-sizing: border-box; 
+    }
+    
+    .nav-title {
+        display: block;
+        font-size: 1.6rem; /* Increased font size from 1.25rem */
+        font-weight: 600; 
+        color: #1d1d1f; 
+    }
+    
+    .nav-items-container {
+        width: auto;
+        justify-content: flex-end;
+        display: flex;
+        height: 100%;
+        gap: 8px; /* Added gap between nav items */
+    }
+    
+    .nav-item {
+        flex-direction: row;
+        gap: 10px; /* Increased gap */
+        padding: 0 20px; /* Increased padding */
+        height: 52px; /* Increased height for a larger click area */
+        flex-grow: 0;
+        color: #333;
+        font-weight: 500;
+        border-radius: 10px; /* Slightly larger radius */
+        border-bottom: none; 
+        transition: color 0.2s ease, background-color 0.2s ease;
+    }
+    
+    .nav-item:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+        color: #000;
+    }
+    
+    .nav-item svg {
+        margin-bottom: 0;
+        width: 24px; /* Increased icon size */
+        height: 24px;
+    }
+    
+    .nav-item span {
+        font-size: 17px; /* Increased font size */
+    }
+    
+    .nav-item.active {
+        font-weight: 600;
+        color: #000;
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+    /* --- FIX END --- */
 }
