@@ -1,3 +1,5 @@
+// src/components/AccountPage.js
+
 import React from 'react';
 import './AccountPage.css';
 
@@ -7,6 +9,7 @@ const formatDate = (dateString) => {
   return new Date(dateString).toLocaleDateString(undefined, options);
 };
 
+// MODIFICATION: Removed onUpdateLanguage and all related state/effects
 function AccountPage({ user, isUpdatingSubscription, onLogout, onSubscribe, onCancelSubscription, onReactivateSubscription }) {
   
   if (!user) {
@@ -16,6 +19,7 @@ function AccountPage({ user, isUpdatingSubscription, onLogout, onSubscribe, onCa
   const periodEndDate = formatDate(user.currentPeriodEnd);
 
   const renderSubscriptionContent = () => {
+    // ... this function remains exactly the same
     if (user.subscriptionStatus === 'active' && user.cancelAtPeriodEnd) {
       return (
         <div className="subscription-card">
@@ -82,6 +86,7 @@ function AccountPage({ user, isUpdatingSubscription, onLogout, onSubscribe, onCa
         <div className="account-info-card">
             <h3>Account Details</h3>
             <p><strong>Email:</strong> {user.email}</p>
+            {/* The language preference is no longer displayed or edited here */}
         </div>
         
         <div className="account-info-card">

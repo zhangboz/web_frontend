@@ -17,20 +17,14 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000'
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
 
 // --- HELPER FUNCTIONS FOR STATE & ID MANAGEMENT ---
-
-// Simple function to generate a unique ID for anonymous users
 const generateUUID = () => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-    // FIX: Added parentheses to satisfy the 'no-mixed-operators' ESLint rule.
-    // This clarifies the order of operations for bitwise operators.
     const r = (Math.random() * 16) | 0;
     const v = c === 'x' ? r : ((r & 0x3) | 0x8);
     return v.toString(16);
   });
 };
 
-
-// Gets existing anonymous ID or creates a new one and stores it
 const getAnonymousId = () => {
   let anonId = localStorage.getItem('anonymousId');
   if (!anonId) {
@@ -70,13 +64,16 @@ function App() {
   const [currentView, setCurrentView] = useState('home');
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => localStorage.getItem('token'));
+  const [language, setLanguage] = useState('en');
   const [authView, setAuthView] = useState('login');
   const [aiResponse, setAiResponse] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [isUpdatingSubscription, setIsUpdatingSubscription] = useState(false);
+  
   const pollingTimeoutRef = useRef(null);
+  const debouncedSaveTimeout = useRef(null);
   const [audioCache, setAudioCache] = useState(new Map());
 
   const handleLoginSuccess = useCallback((newToken) => {
@@ -122,15 +119,17 @@ function App() {
   const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    // We keep the anonymousId in case they log out and want to continue using the app
     sessionStorage.removeItem('appSnapshot');
     setToken(null);
     setUser(null);
+    // When logging out, language state is reset by the useEffect below
     setCurrentView('home');
     setFlowState('idle');
     setAudioCache(new Map());
   }, []);
 
+  // MODIFIED: This function now only fetches and sets the user object.
+  // It returns the user data so the caller can decide what to do with it.
   const fetchUserStatus = useCallback(async () => {
     if (!token) {
       setUser(null);
@@ -144,7 +143,7 @@ function App() {
       const data = await response.json();
       setUser(data.user);
       localStorage.setItem('user', JSON.stringify(data.user));
-      return data.user;
+      return data.user; // Return the fetched user
     } catch (error) {
       console.error('Failed to fetch user status:', error.message);
       handleLogout();
@@ -152,11 +151,23 @@ function App() {
     }
   }, [token, handleLogout]);
 
+  // MODIFIED: This effect now handles initial data loading when a user logs in or out.
   useEffect(() => {
     if (token) {
-      fetchUserStatus();
+      const loadInitialData = async () => {
+        const loadedUser = await fetchUserStatus();
+        // Set language based on the user's saved preference ONLY on initial load.
+        if (loadedUser) {
+          setLanguage(loadedUser.language || 'en');
+        }
+      };
+      loadInitialData();
+    } else {
+      // If there's no token (user is logged out), reset language to default.
+      setLanguage('en');
     }
   }, [token, fetchUserStatus]);
+
 
   useEffect(() => {
     if (flowState !== 'finalizing_payment') return;
@@ -186,6 +197,60 @@ function App() {
     pollStatus();
     return () => clearTimeout(pollingTimeoutRef.current);
   }, [flowState, fetchUserStatus]);
+
+  const handleLanguageChange = (newLanguage) => {
+    setLanguage(newLanguage);
+  };
+  
+  // Debounced auto-save for language preference
+  useEffect(() => {
+    // We only want to auto-save for a logged-in user who has changed their language
+    if (!user || !token || language === user.language) {
+      return;
+    }
+
+    // Clear any existing timer to debounce the save action
+    if (debouncedSaveTimeout.current) {
+      clearTimeout(debouncedSaveTimeout.current);
+    }
+
+    // Set a new timer to save the preference after a 1.5-second delay
+    debouncedSaveTimeout.current = setTimeout(async () => {
+      console.log(`[Debounce] Auto-saving language preference: ${language}`);
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/user/language`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ language: language }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.message || "Failed to auto-save language.");
+        }
+        
+        // Re-fetch user status to get the latest data. This syncs the `user.language`
+        // property, preventing re-saving, but no longer incorrectly resets the `language` state.
+        await fetchUserStatus();
+        console.log('[Debounce] Language preference saved successfully!');
+
+      } catch (error) {
+        // For a background task, we can just log the error instead of disrupting the user.
+        console.error('Failed to auto-save language preference:', error.message);
+      }
+    }, 1500); // 1.5-second delay
+
+    // Cleanup function to clear the timeout if the component unmounts or dependencies change
+    return () => {
+      if (debouncedSaveTimeout.current) {
+        clearTimeout(debouncedSaveTimeout.current);
+      }
+    };
+  }, [language, user, token, fetchUserStatus]);
+
 
   const handleSubscribe = async () => {
     let returnPath = '/account';
@@ -272,8 +337,7 @@ function App() {
     setFlowState('waiting');
     const formData = new FormData();
     formData.append('homeworkImage', selectedFile);
-
-    // Add anonymous ID if user is not logged in
+    formData.append('language', language);
     if (!token) {
       const anonymousId = getAnonymousId();
       formData.append('anonymousId', anonymousId);
@@ -417,7 +481,12 @@ function App() {
             /> : null;
           case 'home':
           default:
-            return <HomePage onFileSelect={handleFileSelect} />;
+            return <HomePage 
+                onFileSelect={handleFileSelect} 
+                language={language}
+                onLanguageChange={handleLanguageChange}
+                user={user}
+            />;
         }
     }
   };

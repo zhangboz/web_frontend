@@ -1,6 +1,5 @@
-// src/components/HomePage.js
 import React, { useRef } from 'react';
-import './HomePage.css'; // Import the new stylesheet
+import './HomePage.css'; 
 
 // --- SVG Icons ---
 const UploadIcon = () => (
@@ -9,7 +8,12 @@ const UploadIcon = () => (
     </svg>
 );
 
-function HomePage({ onFileSelect }) {
+function HomePage({ 
+    onFileSelect, 
+    language, 
+    onLanguageChange, 
+    user
+}) {
     const fileInputRef = useRef(null);
     const cameraInputRef = useRef(null);
 
@@ -45,7 +49,7 @@ function HomePage({ onFileSelect }) {
             <div className="hero-section">
                 <h1 className="hero-title">Homework Help AI</h1>
                 <p className="hero-subtitle">Get instant, step-by-step solutions. Just upload a photo of your problem.</p>
-
+                
                 <div
                     className="upload-area"
                     onClick={() => fileInputRef.current.click()}
@@ -66,6 +70,20 @@ function HomePage({ onFileSelect }) {
                 <button className="button primary-button take-picture-button" onClick={() => cameraInputRef.current.click()}>
                     📸 Take a Picture with your Camera
                 </button>
+
+                <div className="language-selector-home">
+                    <label htmlFor="language-select-home">AI Response Language:</label>
+                    <select
+                        id="language-select-home"
+                        value={language}
+                        onChange={(e) => onLanguageChange(e.target.value)}
+                    >
+                        <option value="en">English</option>
+                        <option value="zh">Chinese</option>
+                    </select>
+                </div>
+
+                {/* The save button is no longer needed as saving is automatic! */}
             </div>
 
             <div className="features-section">
