@@ -12,6 +12,7 @@ import WaitingPage from './components/WaitingPage';
 import ResultsPage from './components/ResultsPage';
 import FinalizingPage from './components/FinalizingPage';
 import BottomNav from './components/BottomNav';
+import NotificationBanner from './components/NotificationBanner'; // <-- Import the new component
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
@@ -71,7 +72,8 @@ function App() {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [isUpdatingSubscription, setIsUpdatingSubscription] = useState(false);
-  
+  const [notification, setNotification] = useState(null); // <-- Add state for the notification
+
   const pollingTimeoutRef = useRef(null);
   const debouncedSaveTimeout = useRef(null);
   const [audioCache, setAudioCache] = useState(new Map());
@@ -79,13 +81,28 @@ function App() {
   const handleLoginSuccess = useCallback((newToken) => {
     localStorage.setItem('token', newToken);
     setToken(newToken);
+    setNotification(null); // <-- Clear notification on successful login
   }, []);
 
   useEffect(() => {
     console.log('[App.js] Mount effect running. Path:', window.location.pathname);
     const urlParams = new URLSearchParams(window.location.search);
     const currentPath = window.location.pathname;
-
+    // --- MODIFIED LOGIC FOR NOTIFICATION ---
+    if (urlParams.get('confirmed') === 'true') {
+        setNotification({
+            type: 'success',
+            message: 'Email confirmed successfully! You can now log in.'
+        });
+        window.history.replaceState({}, '', '/'); // Clean URL
+    } else if (urlParams.get('error') === 'invalid_token') {
+        setNotification({
+            type: 'error',
+            message: 'The confirmation link is invalid or has expired. Please try registering again.'
+        });
+        window.history.replaceState({}, '', '/'); // Clean URL
+    }
+    // --- END MODIFIED LOGIC ---
     if (currentPath === '/auth/callback' && urlParams.has('token')) {
         const tokenFromUrl = urlParams.get('token');
         console.log('[App.js] Handling Google Auth callback.');
@@ -126,6 +143,7 @@ function App() {
     setCurrentView('home');
     setFlowState('idle');
     setAudioCache(new Map());
+    setNotification(null); // <-- Also clear notification on logout
   }, []);
 
   // MODIFIED: This function now only fetches and sets the user object.
@@ -318,7 +336,10 @@ function App() {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.message);
-    setAuthView('login');
+    
+    // Don't switch to login view automatically.
+    // Return the message to be displayed on the Register page.
+    return data.message; 
   };
 
   const handleFileSelect = (file) => {
@@ -496,6 +517,11 @@ function App() {
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <div className="App">
+        <NotificationBanner 
+            message={notification?.message} 
+            type={notification?.type}
+            onClose={() => setNotification(null)}
+        />
         <div className="app-layout">
           <main className="main-content">
             {renderAppContent()}
