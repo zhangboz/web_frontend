@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { okaidia } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import 'katex/dist/katex.min.css'; // Ensure KaTeX CSS is imported
 
 import './ResultsPage.css';
 
@@ -26,16 +27,16 @@ const CodeBlock = ({ inline, className, children }) => {
 };
 
 function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubscribe, audioCache, setAudioCache, isBottomNavVisible }) {
-  const [downloadUrl, setDownloadUrl] = useState(null);
-  const [exportFileName, setExportFileName] = useState('');
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportError, setExportError] = useState(null);
-  const [audioUrl, setAudioUrl] = useState(null);
+  // --- REFACTORED STATE to handle multiple export types ---
+  const [exportState, setExportState] = React.useState({
+    docx: { isExporting: false, downloadUrl: null, fileName: '', error: null },
+    pdf: { isExporting: false, downloadUrl: null, fileName: '', error: null },
+  });
+  const [audioUrl, setAudioUrl] = React.useState(null);
 
   const hasActiveSubscription = user && user.subscriptionStatus === 'active';
   
   const reply1Content = (response?.reply1 && typeof response.reply1 === 'string') ? response.reply1 : "";
-  // This will correctly be null if the response from the new endpoint doesn't include reply2
   const reply2Content = (response?.reply2 && typeof response.reply2 === 'string') ? response.reply2 : null;
   const markdownToDisplay = reply1Content.trim() !== '' ? reply1Content : "Failed to get a valid AI result.";
   const markdownToExport = reply1Content;
@@ -45,7 +46,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
   const audioBlob = cacheEntry?.status === 'success' ? cacheEntry.data : null;
   const audioError = cacheEntry?.status === 'error' ? cacheEntry.error : null;
 
-  useEffect(() => {
+  React.useEffect(() => {
     let objectUrl = null;
     if (audioBlob) {
       objectUrl = URL.createObjectURL(audioBlob);
@@ -76,12 +77,11 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
     featureAction();
   };
 
-  const doExport = async () => {
-    setIsExporting(true);
-    setDownloadUrl(null);
-    setExportError(null);
+  // --- REFACTORED to handle any format ---
+  const doExport = async (format) => {
+    setExportState(prev => ({ ...prev, [format]: { ...prev[format], isExporting: true, downloadUrl: null, error: null } }));
     try {
-      const res = await fetch(`${backendUrl}/api/export/docx`, {
+      const res = await fetch(`${backendUrl}/api/export/${format}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ markdownText: markdownToExport }),
@@ -92,16 +92,13 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
       }
       const data = await res.json();
       if (data.success) {
-        setDownloadUrl(data.downloadUrl);
-        setExportFileName(data.fileName || 'document.docx');
+        setExportState(prev => ({ ...prev, [format]: { isExporting: false, downloadUrl: data.downloadUrl, fileName: data.fileName, error: null } }));
       } else {
         throw new Error(data.message || 'Export process failed.');
       }
     } catch (error) {
-      console.error('Export error:', error);
-      setExportError(`Export failed: ${error.message}`);
-    } finally {
-      setIsExporting(false);
+      console.error(`Export error for ${format}:`, error);
+      setExportState(prev => ({ ...prev, [format]: { isExporting: false, downloadUrl: null, fileName: '', error: `Export failed: ${error.message}` } }));
     }
   };
 
@@ -135,7 +132,6 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
   return (
     <div className="results-page-layout">
       <div className="results-scroll-container">
-        {/* --- FIX: Removed the h2 title for better desktop alignment --- */}
         <div className="results-content markdown-body">
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}
@@ -148,7 +144,6 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
       </div>
       
       <div className={`results-action-bar-vertical ${isBottomNavVisible ? 'with-nav' : ''}`}>
-        {/* This block will not render if reply2Content is null, which is the desired behavior */}
         {reply2Content && (
           <div className="action-item-vertical">
             {audioUrl && !isFetchingAudio ? (
@@ -163,16 +158,29 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
         )}
 
         <div className="action-item-vertical">
-          {downloadUrl ? (
-             <a href={downloadUrl} download={exportFileName} className="button primary-button" target="_blank" rel="noopener noreferrer">
-              ⬇️ Download Document
+          {exportState.docx.downloadUrl ? (
+             <a href={exportState.docx.downloadUrl} download={exportState.docx.fileName} className="button primary-button" target="_blank" rel="noopener noreferrer">
+              ⬇️ Download Word
             </a>
           ) : (
-            <button onClick={() => handlePremiumFeature(doExport, 'Export to Word')} className="button secondary-button" disabled={isExporting}>
-              {isExporting ? <div className="spinner-small-dark"></div> : '📄 Export to Word'}
+            <button onClick={() => handlePremiumFeature(() => doExport('docx'), 'Export to Word')} className="button secondary-button" disabled={exportState.docx.isExporting}>
+              {exportState.docx.isExporting ? <div className="spinner-small-dark"></div> : '📄 Export to Word'}
             </button>
           )}
-          {exportError && <p className="error-message small-error">{exportError}</p>}
+          {exportState.docx.error && <p className="error-message small-error">{exportState.docx.error}</p>}
+        </div>
+
+        <div className="action-item-vertical">
+          {exportState.pdf.downloadUrl ? (
+             <a href={exportState.pdf.downloadUrl} download={exportState.pdf.fileName} className="button primary-button" target="_blank" rel="noopener noreferrer">
+              ⬇️ Download PDF
+            </a>
+          ) : (
+            <button onClick={() => handlePremiumFeature(() => doExport('pdf'), 'Export to PDF')} className="button secondary-button" disabled={exportState.pdf.isExporting}>
+              {exportState.pdf.isExporting ? <div className="spinner-small-dark"></div> : '📄 Export to PDF'}
+            </button>
+          )}
+          {exportState.pdf.error && <p className="error-message small-error">{exportState.pdf.error}</p>}
         </div>
       </div>
     </div>

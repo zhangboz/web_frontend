@@ -77,8 +77,8 @@ function HomePage({
             subtitle: "Get instant, step-by-step solutions. Just upload a photo of your problem."
         },
         notes: {
-            title: "Notes-to-Markdown AI",
-            subtitle: "Convert your handwritten notes into clean Markdown, ready for export."
+            title: "Notes-to-Document AI",
+            subtitle: "Convert your handwritten notes into clean Documents, ready for export."
         }
     };
 
