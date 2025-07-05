@@ -8,11 +8,38 @@ const UploadIcon = () => (
     </svg>
 );
 
+// --- NEW COMPONENT: A selector for the AI product mode ---
+const ProductSelector = ({ mode, onChange }) => (
+    <div className="product-selector">
+        <button
+            className={`selector-button ${mode === 'homework' ? 'active' : ''}`}
+            onClick={() => onChange('homework')}
+        >
+            Solve Problem
+        </button>
+        <button
+            className={`selector-button ${mode === 'notes' ? 'active' : ''}`}
+            onClick={() => onChange('notes')}
+        >
+            Transcribe Notes
+        </button>
+    </div>
+);
+
+/* 
+  ADD THE FOLLOWING CSS TO YOUR HomePage.css file:
+  
+
+*/
+
+
 function HomePage({ 
     onFileSelect, 
     language, 
     onLanguageChange, 
-    user
+    user,
+    productMode,         // <-- New prop
+    onProductModeChange, // <-- New prop
 }) {
     const fileInputRef = useRef(null);
     const cameraInputRef = useRef(null);
@@ -44,11 +71,24 @@ function HomePage({
         }
     };
 
+    const heroContent = {
+        homework: {
+            title: "Homework Help AI",
+            subtitle: "Get instant, step-by-step solutions. Just upload a photo of your problem."
+        },
+        notes: {
+            title: "Notes-to-Markdown AI",
+            subtitle: "Convert your handwritten notes into clean Markdown, ready for export."
+        }
+    };
+
     return (
         <div className="homepage-container">
             <div className="hero-section">
-                <h1 className="hero-title">Homework Help AI</h1>
-                <p className="hero-subtitle">Get instant, step-by-step solutions. Just upload a photo of your problem.</p>
+                <ProductSelector mode={productMode} onChange={onProductModeChange} />
+
+                <h1 className="hero-title">{heroContent[productMode].title}</h1>
+                <p className="hero-subtitle">{heroContent[productMode].subtitle}</p>
                 
                 <div
                     className="upload-area"
@@ -71,19 +111,20 @@ function HomePage({
                     📸 Take a Picture with your Camera
                 </button>
 
-                <div className="language-selector-home">
-                    <label htmlFor="language-select-home">AI Response Language:</label>
-                    <select
-                        id="language-select-home"
-                        value={language}
-                        onChange={(e) => onLanguageChange(e.target.value)}
-                    >
-                        <option value="en">English</option>
-                        <option value="zh">Chinese</option>
-                    </select>
-                </div>
-
-                {/* The save button is no longer needed as saving is automatic! */}
+                {/* --- Conditionally render the language selector --- */}
+                {productMode === 'homework' && (
+                    <div className="language-selector-home">
+                        <label htmlFor="language-select-home">AI Response Language:</label>
+                        <select
+                            id="language-select-home"
+                            value={language}
+                            onChange={(e) => onLanguageChange(e.target.value)}
+                        >
+                            <option value="en">English</option>
+                            <option value="zh">Chinese</option>
+                        </select>
+                    </div>
+                )}
             </div>
 
             <div className="features-section">

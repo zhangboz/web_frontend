@@ -35,6 +35,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
   const hasActiveSubscription = user && user.subscriptionStatus === 'active';
   
   const reply1Content = (response?.reply1 && typeof response.reply1 === 'string') ? response.reply1 : "";
+  // This will correctly be null if the response from the new endpoint doesn't include reply2
   const reply2Content = (response?.reply2 && typeof response.reply2 === 'string') ? response.reply2 : null;
   const markdownToDisplay = reply1Content.trim() !== '' ? reply1Content : "Failed to get a valid AI result.";
   const markdownToExport = reply1Content;
@@ -134,9 +135,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
   return (
     <div className="results-page-layout">
       <div className="results-scroll-container">
-        {/* --- FIX START: Removed the h2 title for better desktop alignment --- */}
-        {/* <h2>Results</h2> */}
-        {/* --- FIX END --- */}
+        {/* --- FIX: Removed the h2 title for better desktop alignment --- */}
         <div className="results-content markdown-body">
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}
@@ -149,6 +148,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
       </div>
       
       <div className={`results-action-bar-vertical ${isBottomNavVisible ? 'with-nav' : ''}`}>
+        {/* This block will not render if reply2Content is null, which is the desired behavior */}
         {reply2Content && (
           <div className="action-item-vertical">
             {audioUrl && !isFetchingAudio ? (

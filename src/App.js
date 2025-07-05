@@ -62,6 +62,7 @@ const restoreSnapshot = () => {
 
 function App() {
   const [flowState, setFlowState] = useState('initializing');
+  const [productMode, setProductMode] = useState('homework'); // <-- NEW STATE FOR PRODUCT
   const [currentView, setCurrentView] = useState('home');
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => localStorage.getItem('token'));
@@ -84,6 +85,7 @@ function App() {
     setNotification(null); // <-- Clear notification on successful login
   }, []);
 
+  // --- UNCHANGED useEffects and handlers ---
   useEffect(() => {
     console.log('[App.js] Mount effect running. Path:', window.location.pathname);
     const urlParams = new URLSearchParams(window.location.search);
@@ -354,25 +356,37 @@ function App() {
     setFlowState('preview');
   };
 
+  // --- MODIFIED: The Upload handler now uses the productMode state ---
   const handleUploadConfirm = async () => {
     setFlowState('waiting');
     const formData = new FormData();
     formData.append('homeworkImage', selectedFile);
-    formData.append('language', language);
+
+    // Determine endpoint and add specific form data based on product mode
+    let endpoint = `${BACKEND_URL}/api/process-homework`;
+    if (productMode === 'homework') {
+        formData.append('language', language);
+    } else if (productMode === 'notes') {
+        endpoint += '/hand-to-markdown';
+    }
+
     if (!token) {
       const anonymousId = getAnonymousId();
       formData.append('anonymousId', anonymousId);
     }
     
     try {
-      const response = await fetch(`${BACKEND_URL}/api/process-homework`, {
+      const response = await fetch(endpoint, { // <-- Use dynamic endpoint
         method: 'POST', 
         body: formData, 
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
-      const newResponse = { reply1: data.reply1, reply2: data.reply2 };
+      
+      // Handle response that may or may not have reply2
+      const newResponse = { reply1: data.reply1, reply2: data.reply2 || null };
+      
       setAiResponse(newResponse);
       saveSnapshot('results', { aiResponse: newResponse });
       setAudioCache(new Map());
@@ -507,6 +521,8 @@ function App() {
                 language={language}
                 onLanguageChange={handleLanguageChange}
                 user={user}
+                productMode={productMode} // <-- Pass state down
+                onProductModeChange={setProductMode} // <-- Pass setter down
             />;
         }
     }

@@ -132,7 +132,36 @@
   background-color: white;
   font-size: 1rem;
 }
-
+  .product-selector {
+    display: flex;
+    background-color: #f0f0f0;
+    border-radius: 20px;
+    padding: 4px;
+    margin-bottom: 24px;
+    border: 1px solid #ddd;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  .selector-button {
+    flex: 1;
+    padding: 8px 16px;
+    border: none;
+    background-color: transparent;
+    color: #555;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 16px;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+  }
+  
+  .selector-button.active {
+    background-color: #fff;
+    color: #007bff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
 /* Desktop styles */
 @media (min-width: 768px) {
     .features-grid {
