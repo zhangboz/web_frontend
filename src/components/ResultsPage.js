@@ -10,7 +10,7 @@ import { okaidia } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import 'katex/dist/katex.min.css';
 import './ResultsPage.css';
 
-// This component is unchanged and correct.
+// This component remains unchanged and is perfectly fine.
 const CodeBlock = ({ inline, className, children }) => {
   const match = /language-(\w+)/.exec(className || '');
   if (!inline && match) {
@@ -28,21 +28,63 @@ const CodeBlock = ({ inline, className, children }) => {
   return <code className={className}>{children}</code>;
 };
 
-// This helper is unchanged and correct.
+// This helper is good. Keep it.
 const getExportButtonText = (status) => {
     switch (status) {
         case 'queuing': return 'Queuing...';
         case 'polling': return 'Processing...';
-        default: return 'Export';
+        default: return 'Export'; // For 'idle' or 'failed'
     }
 }
 
+// --- NEW HELPER: Logic to load and validate state from sessionStorage ---
+const getInitialExportState = () => {
+    const defaultState = {
+        docx: { status: 'idle', jobId: null, downloadUrl: null, error: null },
+        pdf: { status: 'idle', jobId: null, downloadUrl: null, error: null },
+    };
+
+    try {
+        const storedState = sessionStorage.getItem('exportState');
+        if (!storedState) return defaultState;
+        
+        const parsedState = JSON.parse(storedState);
+        
+        // Validate the loaded state to remove expired URLs
+        Object.keys(parsedState).forEach(format => {
+            const job = parsedState[format];
+            if (job.status === 'completed' && (!job.expiresAt || Date.now() > job.expiresAt)) {
+                // This URL has expired, reset it to the default idle state.
+                parsedState[format] = { status: 'idle', jobId: null, downloadUrl: null, error: null };
+            }
+        });
+        return parsedState;
+
+    } catch (e) {
+        // If parsing fails for any reason, return a clean state.
+        return defaultState;
+    }
+};
+
 function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubscribe, audioCache, setAudioCache, isBottomNavVisible }) {
-  // State for export logic
-  const [exportState, setExportState] = useState({
-    docx: { status: 'idle', jobId: null, downloadUrl: null, error: null },
-    pdf: { status: 'idle', jobId: null, downloadUrl: null, error: null },
-  });
+  // --- MODIFIED: useState now uses our helper to load from sessionStorage on initial render ---
+  const [exportState, setExportState] = useState(getInitialExportState);
+
+  // --- NEW: This effect saves the state to sessionStorage whenever it changes ---
+  useEffect(() => {
+    const stateToStore = {};
+    Object.keys(exportState).forEach(format => {
+        const job = exportState[format];
+        // We only store states that are worth remembering across a refresh.
+        if (job.status === 'completed' || job.status === 'failed') {
+            stateToStore[format] = job;
+        } else {
+            // Don't save 'queuing' or 'polling' states, they should reset to idle on a refresh.
+            stateToStore[format] = { status: 'idle', jobId: null, downloadUrl: null, error: null };
+        }
+    });
+    sessionStorage.setItem('exportState', JSON.stringify(stateToStore));
+  }, [exportState]);
 
   // State for audio logic
   const [audioUrl, setAudioUrl] = React.useState(null);
@@ -73,7 +115,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
     };
   }, [audioBlob]);
 
-  // Refactored and correct polling logic
+  // --- MODIFIED: pollJobStatus now adds an expiration timestamp on completion ---
   const pollJobStatus = useCallback((jobId, format) => {
     if (pollingRefs.current[format]) {
         clearInterval(pollingRefs.current[format]);
@@ -90,7 +132,12 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
 
         if (data.state === 'completed') {
           clearInterval(intervalId);
-          setExportState(prev => ({ ...prev, [format]: { ...prev[format], status: 'completed', downloadUrl: data.result.downloadUrl, error: null } }));
+          // GCS signed URLs from the worker last 15 minutes. We set our local timer to 14 mins to be safe.
+          const expiresAt = Date.now() + 14 * 60 * 1000; 
+          setExportState(prev => ({
+            ...prev,
+            [format]: { status: 'completed', downloadUrl: data.result.downloadUrl, error: null, expiresAt }
+          }));
         } else if (data.state === 'failed') {
           clearInterval(intervalId);
           setExportState(prev => ({ ...prev, [format]: { ...prev[format], status: 'failed', error: 'Conversion failed on the server.' } }));
@@ -155,7 +202,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
     featureAction();
   };
 
-  // --- VOICE EXPLANATION FUNCTION (RESTORED) ---
+  // Voice explanation function
   const doVoiceExplain = async () => {
     if (!reply2Content || isFetchingAudio) return;
     setAudioCache(prevCache => new Map(prevCache).set(reply2Content, { status: 'pending' }));
@@ -185,7 +232,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
     };
   }, []);
 
-  // --- RENDER LOGIC ---
+  // --- RENDER LOGIC (UNCHANGED) ---
   return (
     <div className="results-page-layout">
       <div className="results-scroll-container">
@@ -202,7 +249,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
       
       <div className={`results-action-bar-vertical ${isBottomNavVisible ? 'with-nav' : ''}`}>
         
-        {/* --- VOICE EXPLANATION BUTTON & PLAYER (RESTORED) --- */}
+        {/* Voice Explanation Button & Player */}
         {reply2Content && (
           <div className="action-item-vertical">
             {audioUrl && !isFetchingAudio ? (
@@ -216,7 +263,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
           </div>
         )}
 
-        {/* --- DOCX Button Logic --- */}
+        {/* DOCX Button Logic */}
         <div className="action-item-vertical">
           {exportState.docx.status === 'completed' ? (
              <a href={exportState.docx.downloadUrl} className="button primary-button">
@@ -237,7 +284,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
           {exportState.docx.error && <p className="error-message small-error">{exportState.docx.error}</p>}
         </div>
         
-        {/* --- PDF Button Logic --- */}
+        {/* PDF Button Logic */}
         <div className="action-item-vertical">
           {exportState.pdf.status === 'completed' ? (
              <a href={exportState.pdf.downloadUrl} className="button primary-button">
