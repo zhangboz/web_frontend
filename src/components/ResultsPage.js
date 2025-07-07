@@ -1,14 +1,17 @@
-import React from 'react';
+// ResultsPage.js (REPLACE THE ENTIRE FUNCTION)
+
+import React, { useState, useEffect, useCallback, useRef } from 'react'; // <-- Add useRef
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { okaidia } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import 'katex/dist/katex.min.css'; // Ensure KaTeX CSS is imported
+import 'katex/dist/katex.min.css';
 
 import './ResultsPage.css';
 
+// This component remains unchanged
 const CodeBlock = ({ inline, className, children }) => {
   const match = /language-(\w+)/.exec(className || '');
   if (!inline && match) {
@@ -26,13 +29,27 @@ const CodeBlock = ({ inline, className, children }) => {
   return <code className={className}>{children}</code>;
 };
 
+// --- NEW HELPER FOR BUTTON TEXT ---
+const getExportButtonText = (status) => {
+    switch (status) {
+        case 'queuing':
+            return 'Queuing...';
+        case 'polling':
+            return 'Processing...';
+        default:
+            return 'Export'; // For 'idle' or 'failed'
+    }
+}
+
 function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubscribe, audioCache, setAudioCache, isBottomNavVisible }) {
-  // --- REFACTORED STATE to handle multiple export types ---
-  const [exportState, setExportState] = React.useState({
-    docx: { isExporting: false, downloadUrl: null, fileName: '', error: null },
-    pdf: { isExporting: false, downloadUrl: null, fileName: '', error: null },
+  // --- MODIFIED: State now includes job status and ID ---
+  const [exportState, setExportState] = useState({
+    docx: { status: 'idle', jobId: null, downloadUrl: null, fileName: null, error: null },
+    pdf: { status: 'idle', jobId: null, downloadUrl: null, fileName: null, error: null },
   });
+
   const [audioUrl, setAudioUrl] = React.useState(null);
+  const pollingRefs = useRef({}); // Use a ref to store interval IDs
 
   const hasActiveSubscription = user && user.subscriptionStatus === 'active';
   
@@ -46,23 +63,98 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
   const audioBlob = cacheEntry?.status === 'success' ? cacheEntry.data : null;
   const audioError = cacheEntry?.status === 'error' ? cacheEntry.error : null;
 
-  React.useEffect(() => {
+  useEffect(() => {
     let objectUrl = null;
     if (audioBlob) {
       objectUrl = URL.createObjectURL(audioBlob);
       setAudioUrl(objectUrl);
-      console.log("Audio URL created:", objectUrl);
     } else {
       setAudioUrl(null);
     }
-
     return () => {
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-        console.log("Audio URL revoked:", objectUrl);
-      }
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [audioBlob]);
+
+  // --- NEW: Polling logic is now in a reusable function ---
+  const pollJobStatus = useCallback((jobId, format) => {
+    // Clear any existing poller for this format
+    if (pollingRefs.current[format]) {
+        clearInterval(pollingRefs.current[format]);
+    }
+
+    // Set a new interval
+    pollingRefs.current[format] = setInterval(async () => {
+      try {
+        const res = await fetch(`${backendUrl}/api/export/status/${jobId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error('Status check failed.');
+        
+        const data = await res.json();
+
+        if (data.state === 'completed') {
+          clearInterval(pollingRefs.current[format]);
+          setExportState(prev => ({
+            ...prev,
+            [format]: { ...prev[format], status: 'completed', downloadUrl: data.result.downloadUrl, fileName: data.result.fileName, error: null }
+          }));
+        } else if (data.state === 'failed') {
+          clearInterval(pollingRefs.current[format]);
+          setExportState(prev => ({
+            ...prev,
+            [format]: { ...prev[format], status: 'failed', error: 'Conversion process failed on the server.' }
+          }));
+        }
+        // If state is 'active' or 'waiting', do nothing and let it poll again.
+
+      } catch (error) {
+        clearInterval(pollingRefs.current[format]);
+        setExportState(prev => ({
+          ...prev,
+          [format]: { ...prev[format], status: 'failed', error: error.message }
+        }));
+      }
+    }, 3000); // Poll every 3 seconds
+
+    // Safety timeout: stop polling after 2 minutes
+    setTimeout(() => {
+        if (pollingRefs.current[format]) {
+            clearInterval(pollingRefs.current[format]);
+            const currentState = exportState[format].status;
+            if (currentState === 'polling' || currentState === 'queuing') {
+                 setExportState(prev => ({ ...prev, [format]: { ...prev[format], status: 'failed', error: 'Export timed out.' } }));
+            }
+        }
+    }, 120000); // 2 minutes
+
+  }, [backendUrl, token, exportState]);
+
+
+  // --- MODIFIED: doExport is now handleExport, it queues a job ---
+  const handleExport = async (format) => {
+    setExportState(prev => ({ ...prev, [format]: { status: 'queuing', jobId: null, downloadUrl: null, fileName: null, error: null } }));
+    
+    try {
+      const res = await fetch(`${backendUrl}/api/export/${format}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ markdownText: markdownToExport }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to queue export job.');
+      
+      if (data.success && data.jobId) {
+        setExportState(prev => ({ ...prev, [format]: { ...prev[format], status: 'polling', jobId: data.jobId } }));
+        pollJobStatus(data.jobId, format); // Start polling
+      } else {
+        throw new Error(data.message || 'Server did not return a job ID.');
+      }
+    } catch (error) {
+      console.error(`Export queueing error for ${format}:`, error);
+      setExportState(prev => ({ ...prev, [format]: { status: 'failed', error: error.message } }));
+    }
+  };
 
   const handlePremiumFeature = (featureAction, featureName) => {
     if (!user) {
@@ -77,50 +169,20 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
     featureAction();
   };
 
-  // --- REFACTORED to handle any format ---
-  const doExport = async (format) => {
-    setExportState(prev => ({ ...prev, [format]: { ...prev[format], isExporting: true, downloadUrl: null, error: null } }));
-    try {
-      const res = await fetch(`${backendUrl}/api/export/${format}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ markdownText: markdownToExport }),
-      });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Failed to export document.');
-      }
-      const data = await res.json();
-      if (data.success) {
-        setExportState(prev => ({ ...prev, [format]: { isExporting: false, downloadUrl: data.downloadUrl, fileName: data.fileName, error: null } }));
-      } else {
-        throw new Error(data.message || 'Export process failed.');
-      }
-    } catch (error) {
-      console.error(`Export error for ${format}:`, error);
-      setExportState(prev => ({ ...prev, [format]: { isExporting: false, downloadUrl: null, fileName: '', error: `Export failed: ${error.message}` } }));
-    }
-  };
-
   const doVoiceExplain = async () => {
-    if (!reply2Content || isFetchingAudio) {
-      return;
-    }
-    
+    // This function remains unchanged
+    if (!reply2Content || isFetchingAudio) return;
     setAudioCache(prevCache => new Map(prevCache).set(reply2Content, { status: 'pending' }));
-
     try {
       const response = await fetch(`${backendUrl}/api/speech`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'audio/wav', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ text: reply2Content, voice: "" }),
       });
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Synthesis failed.' }));
         throw new Error(errorData.message);
       }
-
       const newAudioBlob = await response.blob();
       setAudioCache(prevCache => new Map(prevCache).set(reply2Content, { status: 'success', data: newAudioBlob }));
     } catch (error) {
@@ -128,7 +190,16 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
       setAudioCache(prevCache => new Map(prevCache).set(reply2Content, { status: 'error', error: error.message }));
     }
   };
+  
+  // --- NEW: Cleanup effect to stop polling when component unmounts ---
+  useEffect(() => {
+    // This is the cleanup function that runs when the component is unmounted
+    return () => {
+      Object.values(pollingRefs.current).forEach(clearInterval);
+    };
+  }, []);
 
+  // --- RENDER LOGIC UPDATED FOR NEW STATES ---
   return (
     <div className="results-page-layout">
       <div className="results-scroll-container">
@@ -157,27 +228,43 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
           </div>
         )}
 
+        {/* --- DOCX Button Logic --- */}
         <div className="action-item-vertical">
-          {exportState.docx.downloadUrl ? (
+          {exportState.docx.status === 'completed' ? (
              <a href={exportState.docx.downloadUrl} download={exportState.docx.fileName} className="button primary-button" target="_blank" rel="noopener noreferrer">
               ⬇️ Download Word
             </a>
           ) : (
-            <button onClick={() => handlePremiumFeature(() => doExport('docx'), 'Export to Word')} className="button secondary-button" disabled={exportState.docx.isExporting}>
-              {exportState.docx.isExporting ? <div className="spinner-small-dark"></div> : '📄 Export to Word'}
+            <button 
+              onClick={() => handlePremiumFeature(() => handleExport('docx'), 'Export to Word')} 
+              className="button secondary-button" 
+              disabled={exportState.docx.status === 'queuing' || exportState.docx.status === 'polling'}
+            >
+              {(exportState.docx.status === 'queuing' || exportState.docx.status === 'polling') 
+                ? <div className="spinner-small-dark"></div> 
+                : `📄 ${getExportButtonText(exportState.docx.status)} to Word`
+              }
             </button>
           )}
           {exportState.docx.error && <p className="error-message small-error">{exportState.docx.error}</p>}
         </div>
-
+        
+        {/* --- PDF Button Logic --- */}
         <div className="action-item-vertical">
-          {exportState.pdf.downloadUrl ? (
+          {exportState.pdf.status === 'completed' ? (
              <a href={exportState.pdf.downloadUrl} download={exportState.pdf.fileName} className="button primary-button" target="_blank" rel="noopener noreferrer">
               ⬇️ Download PDF
             </a>
           ) : (
-            <button onClick={() => handlePremiumFeature(() => doExport('pdf'), 'Export to PDF')} className="button secondary-button" disabled={exportState.pdf.isExporting}>
-              {exportState.pdf.isExporting ? <div className="spinner-small-dark"></div> : '📄 Export to PDF'}
+            <button 
+              onClick={() => handlePremiumFeature(() => handleExport('pdf'), 'Export to PDF')} 
+              className="button secondary-button" 
+              disabled={exportState.pdf.status === 'queuing' || exportState.pdf.status === 'polling'}
+            >
+              {(exportState.pdf.status === 'queuing' || exportState.pdf.status === 'polling')
+                ? <div className="spinner-small-dark"></div>
+                : `📄 ${getExportButtonText(exportState.pdf.status)} to PDF`
+              }
             </button>
           )}
           {exportState.pdf.error && <p className="error-message small-error">{exportState.pdf.error}</p>}
