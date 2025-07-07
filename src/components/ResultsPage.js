@@ -1,6 +1,6 @@
-// ResultsPage.js (REPLACE THE ENTIRE FUNCTION)
+// ResultsPage.js (REPLACE THE ENTIRE FILE)
 
-import React, { useState, useEffect, useCallback, useRef } from 'react'; // <-- Add useRef
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -8,10 +8,9 @@ import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { okaidia } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import 'katex/dist/katex.min.css';
-
 import './ResultsPage.css';
 
-// This component remains unchanged
+// This component is unchanged and correct.
 const CodeBlock = ({ inline, className, children }) => {
   const match = /language-(\w+)/.exec(className || '');
   if (!inline && match) {
@@ -29,27 +28,25 @@ const CodeBlock = ({ inline, className, children }) => {
   return <code className={className}>{children}</code>;
 };
 
-// --- NEW HELPER FOR BUTTON TEXT ---
+// This helper is unchanged and correct.
 const getExportButtonText = (status) => {
     switch (status) {
-        case 'queuing':
-            return 'Queuing...';
-        case 'polling':
-            return 'Processing...';
-        default:
-            return 'Export'; // For 'idle' or 'failed'
+        case 'queuing': return 'Queuing...';
+        case 'polling': return 'Processing...';
+        default: return 'Export';
     }
 }
 
 function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubscribe, audioCache, setAudioCache, isBottomNavVisible }) {
-  // --- MODIFIED: State now includes job status and ID ---
+  // State for export logic
   const [exportState, setExportState] = useState({
-    docx: { status: 'idle', jobId: null, downloadUrl: null, fileName: null, error: null },
-    pdf: { status: 'idle', jobId: null, downloadUrl: null, fileName: null, error: null },
+    docx: { status: 'idle', jobId: null, downloadUrl: null, error: null },
+    pdf: { status: 'idle', jobId: null, downloadUrl: null, error: null },
   });
 
+  // State for audio logic
   const [audioUrl, setAudioUrl] = React.useState(null);
-  const pollingRefs = useRef({}); // Use a ref to store interval IDs
+  const pollingRefs = useRef({});
 
   const hasActiveSubscription = user && user.subscriptionStatus === 'active';
   
@@ -76,15 +73,13 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
     };
   }, [audioBlob]);
 
-  // --- NEW: Polling logic is now in a reusable function ---
+  // Refactored and correct polling logic
   const pollJobStatus = useCallback((jobId, format) => {
-    // Clear any existing poller for this format
     if (pollingRefs.current[format]) {
         clearInterval(pollingRefs.current[format]);
     }
 
-    // Set a new interval
-    pollingRefs.current[format] = setInterval(async () => {
+    const intervalId = setInterval(async () => {
       try {
         const res = await fetch(`${backendUrl}/api/export/status/${jobId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -94,46 +89,38 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
         const data = await res.json();
 
         if (data.state === 'completed') {
-          clearInterval(pollingRefs.current[format]);
-          setExportState(prev => ({
-            ...prev,
-            [format]: { ...prev[format], status: 'completed', downloadUrl: data.result.downloadUrl, fileName: data.result.fileName, error: null }
-          }));
+          clearInterval(intervalId);
+          setExportState(prev => ({ ...prev, [format]: { ...prev[format], status: 'completed', downloadUrl: data.result.downloadUrl, error: null } }));
         } else if (data.state === 'failed') {
-          clearInterval(pollingRefs.current[format]);
-          setExportState(prev => ({
-            ...prev,
-            [format]: { ...prev[format], status: 'failed', error: 'Conversion process failed on the server.' }
-          }));
+          clearInterval(intervalId);
+          setExportState(prev => ({ ...prev, [format]: { ...prev[format], status: 'failed', error: 'Conversion failed on the server.' } }));
         }
-        // If state is 'active' or 'waiting', do nothing and let it poll again.
-
       } catch (error) {
-        clearInterval(pollingRefs.current[format]);
-        setExportState(prev => ({
-          ...prev,
-          [format]: { ...prev[format], status: 'failed', error: error.message }
-        }));
+        clearInterval(intervalId);
+        setExportState(prev => ({ ...prev, [format]: { ...prev[format], status: 'failed', error: error.message } }));
       }
-    }, 3000); // Poll every 3 seconds
+    }, 3000);
 
-    // Safety timeout: stop polling after 2 minutes
+    pollingRefs.current[format] = intervalId;
+
     setTimeout(() => {
-        if (pollingRefs.current[format]) {
-            clearInterval(pollingRefs.current[format]);
-            const currentState = exportState[format].status;
-            if (currentState === 'polling' || currentState === 'queuing') {
-                 setExportState(prev => ({ ...prev, [format]: { ...prev[format], status: 'failed', error: 'Export timed out.' } }));
-            }
+        const poller = pollingRefs.current[format];
+        if (poller === intervalId) {
+            clearInterval(poller);
+            setExportState(prev => {
+                if (prev[format].status === 'polling' || prev[format].status === 'queuing') {
+                    return { ...prev, [format]: { ...prev[format], status: 'failed', error: 'Export timed out.' } };
+                }
+                return prev;
+            });
         }
-    }, 120000); // 2 minutes
+    }, 120000);
 
-  }, [backendUrl, token, exportState]);
+  }, [backendUrl, token]);
 
-
-  // --- MODIFIED: doExport is now handleExport, it queues a job ---
+  // Export handling function
   const handleExport = async (format) => {
-    setExportState(prev => ({ ...prev, [format]: { status: 'queuing', jobId: null, downloadUrl: null, fileName: null, error: null } }));
+    setExportState(prev => ({ ...prev, [format]: { status: 'queuing', jobId: null, downloadUrl: null, error: null } }));
     
     try {
       const res = await fetch(`${backendUrl}/api/export/${format}`, {
@@ -146,7 +133,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
       
       if (data.success && data.jobId) {
         setExportState(prev => ({ ...prev, [format]: { ...prev[format], status: 'polling', jobId: data.jobId } }));
-        pollJobStatus(data.jobId, format); // Start polling
+        pollJobStatus(data.jobId, format);
       } else {
         throw new Error(data.message || 'Server did not return a job ID.');
       }
@@ -156,10 +143,9 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
     }
   };
 
+  // Premium feature gate
   const handlePremiumFeature = (featureAction, featureName) => {
-    if (!user) {
-      return onRequestLogin();
-    }
+    if (!user) return onRequestLogin();
     if (!hasActiveSubscription) {
       if(window.confirm(`'${featureName}' is a premium feature. Would you like to subscribe now?`)) {
         onSubscribe();
@@ -169,8 +155,8 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
     featureAction();
   };
 
+  // --- VOICE EXPLANATION FUNCTION (RESTORED) ---
   const doVoiceExplain = async () => {
-    // This function remains unchanged
     if (!reply2Content || isFetchingAudio) return;
     setAudioCache(prevCache => new Map(prevCache).set(reply2Content, { status: 'pending' }));
     try {
@@ -191,15 +177,15 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
     }
   };
   
-  // --- NEW: Cleanup effect to stop polling when component unmounts ---
+  // Cleanup effect for polling intervals
   useEffect(() => {
-    // This is the cleanup function that runs when the component is unmounted
+    const currentPollers = pollingRefs.current;
     return () => {
-      Object.values(pollingRefs.current).forEach(clearInterval);
+      Object.values(currentPollers).forEach(clearInterval);
     };
   }, []);
 
-  // --- RENDER LOGIC UPDATED FOR NEW STATES ---
+  // --- RENDER LOGIC ---
   return (
     <div className="results-page-layout">
       <div className="results-scroll-container">
@@ -215,6 +201,8 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
       </div>
       
       <div className={`results-action-bar-vertical ${isBottomNavVisible ? 'with-nav' : ''}`}>
+        
+        {/* --- VOICE EXPLANATION BUTTON & PLAYER (RESTORED) --- */}
         {reply2Content && (
           <div className="action-item-vertical">
             {audioUrl && !isFetchingAudio ? (
@@ -231,7 +219,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
         {/* --- DOCX Button Logic --- */}
         <div className="action-item-vertical">
           {exportState.docx.status === 'completed' ? (
-             <a href={exportState.docx.downloadUrl} download={exportState.docx.fileName} className="button primary-button" target="_blank" rel="noopener noreferrer">
+             <a href={exportState.docx.downloadUrl} className="button primary-button">
               ⬇️ Download Word
             </a>
           ) : (
@@ -252,7 +240,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
         {/* --- PDF Button Logic --- */}
         <div className="action-item-vertical">
           {exportState.pdf.status === 'completed' ? (
-             <a href={exportState.pdf.downloadUrl} download={exportState.pdf.fileName} className="button primary-button" target="_blank" rel="noopener noreferrer">
+             <a href={exportState.pdf.downloadUrl} className="button primary-button">
               ⬇️ Download PDF
             </a>
           ) : (
