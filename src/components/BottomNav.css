@@ -1,4 +1,6 @@
 /* src/components/BottomNav.css */
+
+/* --- Base Mobile Styles --- */
 .bottom-nav {
     position: fixed;
     bottom: 0;
@@ -7,14 +9,30 @@
     height: 65px;
     background-color: #ffffff;
     display: flex;
-    justify-content: space-around;
+    justify-content: space-around; /* This will now space out the logo and the nav items */
     align-items: center;
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
     z-index: 1000;
 }
 
+/* --- CHANGE: Make title visible on mobile but only show the logo --- */
 .nav-title {
-    display: none; /* Hide title on mobile */
+    display: none; /* This hides it on mobile again */
+}
+
+/* --- NEW: Style the logo for mobile and set its fill color --- */
+.nav-logo-icon {
+    height: 32px; /* A good size for mobile nav bar */
+    width: auto;  /* Maintain aspect ratio */
+}
+/* This is crucial for making your gradient appear! */
+.nav-logo-icon path {
+    fill: url(#logoGradient);
+}
+
+/* --- NEW: Hide the logo text on mobile --- */
+.nav-logo-text {
+    display: none;
 }
 
 .nav-items-container {
@@ -37,6 +55,7 @@
     height: 100%;
     color: #8e8e93;
     transition: color 0.2s ease-in-out;
+    padding: 0; margin: 0;
 }
 
 .nav-item svg {
@@ -54,63 +73,68 @@
     color: #007bff;
 }
 
-.nav-item {
-    padding: 0; margin: 0; width: auto;
-}
 .nav-item:hover {
-    background-color: #f8f8f8; transform: none;
+    background-color: #f8f8f8;
 }
+
 
 /* --- Desktop Styles --- */
 @media (min-width: 768px) {
-    /* --- FIX START: Making the Navbar Larger and Bolder --- */
     .bottom-nav {
-        position: sticky;
-        top: 0;
-        z-index: 1000;
-        height: 80px; /* Increased height from 64px */
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0 40px; /* Increased horizontal padding */
+        /* --- FIX: Change from sticky top to fixed bottom --- */
+        position: fixed;
+        bottom: 0;
+        top: auto; /* Explicitly unset top positioning */
+        border-top: 1px solid rgba(0, 0, 0, 0.1); /* Use border-top */
+        border-bottom: none; /* Remove bottom border */
+        /* --- End of Fix --- */
 
-        /* The "Glass" Effect */
+        height: 80px;
+        justify-content: space-between; 
+        padding: 0 40px;
         background: rgba(255, 255, 255, 0.85);
-        -webkit-backdrop-filter: blur(16px); /* Stronger blur */
+        -webkit-backdrop-filter: blur(16px);
         backdrop-filter: blur(16px);
-
-        /* Subtle bottom border for definition */
-        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-        
         width: 100%;
         box-sizing: border-box; 
     }
     
+    /* --- CHANGE: Adjust desktop title styles for logo + text --- */
     .nav-title {
-        display: block;
-        font-size: 1.6rem; /* Increased font size from 1.25rem */
+        display: flex; /* Ensure flex layout */
+        align-items: center;
+        flex-grow: 0; /* Don't let it grow on desktop */
+    }
+
+    /* --- NEW: Upscale the logo for desktop --- */
+    .nav-logo-icon {
+        height: 45px; /* Larger for desktop navbar */
+    }
+    
+    /* --- NEW: Show and style the logo text on desktop --- */
+    .nav-logo-text {
+        display: inline; /* Show the text */
+        font-size: 1.6rem;
         font-weight: 600; 
         color: #1d1d1f; 
+        margin-left: 12px; /* Add space between logo and text */
     }
     
     .nav-items-container {
         width: auto;
         justify-content: flex-end;
-        display: flex;
-        height: 100%;
-        gap: 8px; /* Added gap between nav items */
+        gap: 8px;
     }
     
     .nav-item {
         flex-direction: row;
-        gap: 10px; /* Increased gap */
-        padding: 0 20px; /* Increased padding */
-        height: 52px; /* Increased height for a larger click area */
+        gap: 10px;
+        padding: 0 20px;
+        height: 52px;
         flex-grow: 0;
         color: #333;
         font-weight: 500;
-        border-radius: 10px; /* Slightly larger radius */
-        border-bottom: none; 
+        border-radius: 10px;
         transition: color 0.2s ease, background-color 0.2s ease;
     }
     
@@ -121,12 +145,12 @@
     
     .nav-item svg {
         margin-bottom: 0;
-        width: 24px; /* Increased icon size */
+        width: 24px;
         height: 24px;
     }
     
     .nav-item span {
-        font-size: 17px; /* Increased font size */
+        font-size: 17px;
     }
     
     .nav-item.active {
@@ -134,5 +158,4 @@
         color: #000;
         background-color: rgba(0, 0, 0, 0.05);
     }
-    /* --- FIX END --- */
 }

@@ -2,10 +2,23 @@ import React, { useState, useEffect } from 'react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 
+// --- ADDED: Simple CSS-in-JS for styling ---
+// We define the styles here to reuse them for all inputs.
+const styles = {
+  input: {
+    padding: '12px 15px',
+    fontSize: '16px',
+    width: '100%',
+    boxSizing: 'border-box', // Prevents padding from making it wider than 100%
+    marginBottom: '15px',
+    border: '1px solid #ccc',
+    borderRadius: '8px',
+  }
+};
+
 // A custom button component to trigger the server-side flow
 const GoogleLoginButton = () => {
   const handleGoogleLogin = () => {
-    // Redirect the user to our backend endpoint that starts the Google OAuth flow
     window.location.href = `${BACKEND_URL}/api/login/auth/google`;
   };
 
@@ -17,13 +30,11 @@ const GoogleLoginButton = () => {
   );
 };
 
-
 function LoginPage({ onLogin, onSwitchToRegister }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  // Check for login errors from URL params (e.g., from Google auth failure)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('error')) {
@@ -45,8 +56,10 @@ function LoginPage({ onLogin, onSwitchToRegister }) {
     <div className="container">
       <h2>Login</h2>
       <form onSubmit={handleSubmit}>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
+        {/* --- MODIFIED: Added style prop --- */}
+        <input style={styles.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
+        <input style={styles.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
+        
         {error && <p className="error-message">{error}</p>}
         <button type="submit" className="button">Login</button>
       </form>

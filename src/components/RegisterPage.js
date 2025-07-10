@@ -1,6 +1,19 @@
 // RegisterPage.js
 import React, { useState } from 'react';
 
+// --- ADDED: Simple CSS-in-JS for styling (identical to LoginPage) ---
+const styles = {
+  input: {
+    padding: '12px 15px',
+    fontSize: '16px',
+    width: '100%',
+    boxSizing: 'border-box', // Prevents padding from making it wider than 100%
+    marginBottom: '15px',
+    border: '1px solid #ccc',
+    borderRadius: '8px',
+  }
+};
+
 function RegisterPage({ onRegister, onSwitchToLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -12,17 +25,14 @@ function RegisterPage({ onRegister, onSwitchToLogin }) {
     setError('');
     setMessage('');
 
-    // --- ADDED: Frontend Password Validation ---
     if (password.length < 8) {
       setError('Password must be at least 8 characters long.');
       return;
     }
 
     try {
-        // The onRegister function now gets the success message from the backend
         const responseMessage = await onRegister({ email, password });
         setMessage(responseMessage || 'Registration successful! Please check your email.');
-        // Clear form on success
         setEmail('');
         setPassword('');
     } catch (err) {
@@ -33,11 +43,12 @@ function RegisterPage({ onRegister, onSwitchToLogin }) {
   return (
     <div className="container">
       <h2>Register</h2>
-      {/* Hide form if registration was successful */}
       {!message ? (
         <form onSubmit={handleSubmit}>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password (min. 8 characters)" required />
+          {/* --- MODIFIED: Added style prop --- */}
+          <input style={styles.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
+          <input style={styles.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password (min. 8 characters)" required />
+
           {error && <p className="error-message">{error}</p>}
           <button type="submit" className="button">Register</button>
         </form>

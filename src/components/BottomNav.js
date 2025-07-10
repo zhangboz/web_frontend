@@ -1,7 +1,8 @@
 import React from 'react';
 import './BottomNav.css';
+import { ReactComponent as LogoIcon } from '../assets/logo.svg';
 
-// --- SVG Icons ---
+// --- SVG Icons (no changes here) ---
 const HomeIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
 );
@@ -17,10 +18,15 @@ const ResultsIcon = () => (
 function BottomNav({ activeView, onNavClick, user, hasResults }) {
   return (
     <nav className="bottom-nav">
-      <div className="nav-title">Homework Help AI</div>
+      {/* --- MODIFIED: Added a span for the text --- */}
+      <div className="nav-title">
+        <LogoIcon className="nav-logo-icon" />
+        <span className="nav-logo-text">Synapse-Education</span>
+      </div>
+
       <div className="nav-items-container">
-        <button 
-          className={`nav-item ${activeView === 'home' ? 'active' : ''}`} 
+        <button
+          className={`nav-item ${activeView === 'home' ? 'active' : ''}`}
           onClick={() => onNavClick('home')}
         >
           <HomeIcon />
@@ -28,8 +34,8 @@ function BottomNav({ activeView, onNavClick, user, hasResults }) {
         </button>
 
         {hasResults && (
-          <button 
-            className={`nav-item ${activeView === 'results' ? 'active' : ''}`} 
+          <button
+            className={`nav-item ${activeView === 'results' ? 'active' : ''}`}
             onClick={() => onNavClick('results')}
           >
             <ResultsIcon />
@@ -37,8 +43,8 @@ function BottomNav({ activeView, onNavClick, user, hasResults }) {
           </button>
         )}
 
-        <button 
-          className={`nav-item ${activeView === 'account' ? 'active' : ''}`} 
+        <button
+          className={`nav-item ${activeView === 'account' ? 'active' : ''}`}
           onClick={() => onNavClick('account')}
         >
           <UserIcon />

@@ -274,9 +274,10 @@ p {
   }
   
   /* Add padding-top to prevent content from being hidden by the sticky nav */
-  .main-content {
-    padding-top: 60px; /* Height of the top nav */
-    padding-bottom: 40px; /* Reset mobile padding */
+.main-content {
+    padding-top: 60px; /* Keep this for the (unseen) top header */
+    /* --- FIX: Add space at the bottom for the fixed 80px nav bar --- */
+    padding-bottom: 120px; /* 80px for nav + 40px breathing room */
   }
 
   /* Give containers more space on desktop */

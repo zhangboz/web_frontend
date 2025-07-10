@@ -71,7 +71,7 @@ function AccountPage({ user, isUpdatingSubscription, onLogout, onSubscribe, onCa
     return (
       <div className="subscription-card">
         <p className="status-text inactive">Status: Inactive ❌</p>
-        <p>Unlock all features by subscribing to a premium plan.</p>
+        <p>Start your 7 Days Trail with Premium Plan.</p>
         {premiumFeatures}
         <button onClick={() => onSubscribe('/account')} className="button primary-button">
           Subscribe Now

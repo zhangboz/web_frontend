@@ -173,7 +173,8 @@
   .results-scroll-container {
     flex: 3; /* Take up more space */
     min-width: 0; /* Fix flexbox shrinking issues */
-    overflow-y: visible; /* No longer needs to scroll independently */
+    /* --- FIX: Let the page scroll, not this container --- */
+    overflow-y: visible; 
     padding: 0; /* Reset mobile padding */
   }
   
@@ -203,7 +204,7 @@
     box-shadow: 0 4px 20px rgba(0,0,0,0.05);
   }
 
-  /* --- FIX START: Add a title to the action bar using a pseudo-element --- */
+  /* --- (keep the ::before pseudo-element for the action bar title) --- */
   .results-action-bar-vertical::before {
     content: 'Tools & Actions';
     display: block;
