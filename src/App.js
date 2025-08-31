@@ -13,7 +13,9 @@ import ResultsPage from './components/ResultsPage';
 import FinalizingPage from './components/FinalizingPage';
 import BottomNav from './components/BottomNav';
 import NotificationBanner from './components/NotificationBanner'; // <-- Import the new component
-
+import { Routes, Route } from 'react-router-dom';
+import AdminPage from './components/AdminPage';
+import ProtectedRoute from './components/ProtectedRoute';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
 
@@ -538,20 +540,36 @@ function App() {
             type={notification?.type}
             onClose={() => setNotification(null)}
         />
-        <div className="app-layout">
-          <main className="main-content">
-            {renderAppContent()}
-          </main>
-          {showBottomNav && 
-            <BottomNav 
-              activeView={currentView} 
-              onNavClick={handleNavClick} 
-              user={user} 
-              hasResults={!!aiResponse}
+        {/* The new Routes component will wrap your main content */}
+        <Routes>
+            {/* Route for the Admin Page */}
+            <Route 
+                path="/admin" 
+                element={
+                    <ProtectedRoute>
+                        <AdminPage />
+                    </ProtectedRoute>
+                } 
             />
-          }
-        </div>
-        {renderLoginModal()}
+
+            {/* Your original App content becomes the default route */}
+            <Route path="*" element={
+                <div className="app-layout">
+                  <main className="main-content">
+                    {renderAppContent()}
+                  </main>
+                  {showBottomNav && 
+                    <BottomNav 
+                      activeView={currentView} 
+                      onNavClick={handleNavClick} 
+                      user={user} 
+                      hasResults={!!aiResponse}
+                    />
+                  }
+                   {renderLoginModal()}
+                </div>
+            }/>
+        </Routes>
       </div>
     </GoogleOAuthProvider>
   );

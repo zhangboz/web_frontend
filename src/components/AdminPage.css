@@ -1,0 +1,413 @@
+/* src/components/AdminPage.css */
+
+.admin-container {
+    max-width: 1400px; /* MODIFIED: Increased width for better table viewing */
+    margin: 40px auto;
+    padding: 2rem;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+.admin-container h1 {
+    text-align: center;
+    color: #2c3e50;
+    margin-bottom: 0.5rem;
+}
+
+.admin-container p {
+    text-align: center;
+    color: #7f8c8d;
+    margin-bottom: 2rem;
+}
+
+.upload-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background-color: #fff;
+    margin-bottom: 2rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group label {
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #34495e;
+}
+
+.form-group input[type="text"] {
+    padding: 12px;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+.form-group input[type="text"]:disabled {
+    background-color: #ecf0f1;
+    cursor: not-allowed;
+}
+
+/* Hide default file input */
+input[type="file"] {
+    display: none;
+}
+
+.file-upload-label {
+    display: inline-block;
+    padding: 12px 20px;
+    background-color: #3498db;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: center;
+    transition: background-color 0.2s;
+}
+
+.file-upload-label:hover {
+    background-color: #2980b9;
+}
+
+.upload-button {
+    padding: 15px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: white;
+    background-color: #27ae60;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.upload-button:hover:not(:disabled) {
+    background-color: #229954;
+}
+
+.upload-button:disabled {
+    background-color: #95a5a6;
+    cursor: not-allowed;
+}
+
+.error-message {
+    color: #c0392b;
+    font-weight: bold;
+    text-align: center;
+}
+
+.file-queue h2 {
+    border-bottom: 2px solid #ecf0f1;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.file-queue ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+.queue-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    border-left: 5px solid;
+    transition: background-color 0.3s, border-color 0.3s;
+}
+
+.file-name {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 1rem;
+}
+
+.file-status {
+    font-style: italic;
+    color: #555;
+    flex-shrink: 0;
+}
+
+/* Status Colors */
+.status-waiting {
+    background-color: #f0f0f0;
+    border-color: #bdc3c7; /* Silver */
+}
+.status-uploading, .status-processing {
+    background-color: #e9f5fd;
+    border-color: #3498db; /* Peter River */
+}
+.status-complete {
+    background-color: #eafaf1;
+    border-color: #2ecc71; /* Emerald */
+}
+.status-error {
+    background-color: #fbeeeea1;
+    border-color: #e74c3c; /* Alizarin */
+}
+
+/* Tab Styles */
+.admin-tabs {
+    display: flex;
+    border-bottom: 2px solid #e0e0e0;
+    margin-bottom: 2rem;
+}
+
+.tab-button {
+    padding: 1rem 1.5rem;
+    cursor: pointer;
+    border: none;
+    background-color: transparent;
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #7f8c8d;
+    position: relative;
+    top: 2px;
+}
+
+.tab-button.active {
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+}
+
+/* Spinner for Loading State */
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 40px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* DB Viewer Specific Styles */
+.db-viewer {
+    width: 100%;
+}
+
+.db-table-list {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.db-table-list button {
+    width: 100%;
+    padding: 1.5rem;
+    background-color: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    color: #3498db;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.db-table-list button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.table-view-container .back-button {
+    margin-bottom: 1.5rem;
+    padding: 0.7rem 1.5rem;
+    background-color: #7f8c8d;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.table-view-container .back-button:hover {
+    background-color: #6c7a89;
+}
+
+.table-view-container h2 {
+    color: #2c3e50;
+    border-bottom: 2px solid #e0e0e0;
+    padding-bottom: 0.5rem;
+}
+
+/* --- NEW: Filter and Pagination Controls --- */
+.db-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.filter-form {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.filter-form input {
+    padding: 8px 12px;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    min-width: 300px;
+}
+
+.filter-form button {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: #3498db;
+    color: white;
+    font-weight: 500;
+}
+
+.filter-form .clear-filter-button {
+    background-color: #e74c3c;
+}
+.filter-form .clear-filter-button:hover {
+    background-color: #c0392b;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.pagination-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pagination-buttons button {
+    padding: 8px 12px;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    background-color: white;
+    cursor: pointer;
+}
+
+.pagination-buttons button:disabled {
+    background-color: #ecf0f1;
+    cursor: not-allowed;
+    color: #95a5a6;
+}
+/* --- END NEW STYLES --- */
+
+
+.table-structure {
+    background-color: #ecf0f1;
+    padding: 1rem;
+    border-radius: 5px;
+    margin: 1rem 0 2rem 0;
+    font-family: 'Courier New', Courier, monospace;
+    white-space: pre;
+    overflow-x: auto;
+    font-size: 0.9rem;
+}
+
+.data-table-wrapper {
+    overflow-x: auto;
+    width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th, .data-table td {
+    padding: 0.8rem 1rem;
+    border: 1px solid #ddd;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.data-table th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.data-table td {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.data-table td:hover {
+    background-color: #f9f9f9;
+}
+
+/* Cell Modal Styles */
+.cell-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.cell-modal-content {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    max-width: 80%;
+    width: 700px;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.cell-modal-content .close-modal-button {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: none;
+    border: none;
+    font-size: 2rem;
+    cursor: pointer;
+    color: #95a5a6;
+}
+.cell-modal-content .close-modal-button:hover {
+    color: #34495e;
+}
+
+.cell-modal-content pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background-color: #f8f8f8;
+    padding: 1rem;
+    border-radius: 5px;
+}
