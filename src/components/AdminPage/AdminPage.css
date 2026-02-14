@@ -411,3 +411,77 @@ input[type="file"] {
     padding: 1rem;
     border-radius: 5px;
 }
+
+/* Styling for selected rows */
+.data-table tr.selected-row {
+    background-color: #ffeeba; /* A light yellow highlight */
+}
+
+/* Actions bar above the table */
+.table-actions {
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.delete-button {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.delete-button:hover {
+    background-color: #c82333;
+}
+
+/* Styling for the delete confirmation modal */
+.delete-modal {
+    max-width: 500px;
+}
+
+.delete-modal p {
+    line-height: 1.5;
+}
+
+.delete-modal code {
+    background-color: #f0f0f0;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-family: monospace;
+}
+
+.delete-modal input[type="text"] {
+    width: 100%;
+    padding: 8px;
+    margin: 1rem 0;
+    box-sizing: border-box;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 1rem;
+}
+
+.modal-actions button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    cursor: pointer;
+}
+
+.delete-confirm-button {
+    background-color: #dc3545;
+    color: white;
+    border-color: #dc3545;
+}
+
+.delete-confirm-button:disabled {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    cursor: not-allowed;
+}

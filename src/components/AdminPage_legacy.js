@@ -1,6 +1,7 @@
 // src/components/AdminPage.js
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
+// --- REMOVED: No longer using fetchEventSource ---
+// import { fetchEventSource } from '@microsoft/fetch-event-source';
 import './AdminPage.css';
 
 // --- EXISTING HELPER FUNCTIONS ---
@@ -54,15 +55,27 @@ const AdminPage = () => {
 };
 
 
-// --- Uploader Component (Existing Logic) ---
+// --- Uploader Component (MODIFIED) ---
 const FileUploader = ({ token }) => {
-    const [folderName, setFolderName] = useState('');
+    const [metadata, setMetadata] = useState({
+        institution: '',    // Corresponds to short_name
+        department: '',
+        courseCode: '',
+        professorFirstName: '',
+        professorLastName: '',
+        year: '',
+        semester: ''
+    });
     const [files, setFiles] = useState([]);
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState('');
     const fileInputRef = useRef(null);
 
-    // useCallback to memoize the function definition
+    const handleMetadataChange = (e) => {
+        const { name, value } = e.target;
+        setMetadata(prev => ({ ...prev, [name]: value }));
+    };
+
     const updateFileStatus = useCallback((id, status, message) => {
         setFiles(prevFiles =>
             prevFiles.map(f =>
@@ -75,7 +88,13 @@ const FileUploader = ({ token }) => {
         updateFileStatus(fileToProcess.id, 'uploading', '1/4: Uploading to server...');
         const formData = new FormData();
         formData.append('courseFile', fileToProcess.file);
-        formData.append('folderName', folderName);
+        
+        // --- MODIFIED: Append all metadata fields ---
+        Object.entries(metadata).forEach(([key, value]) => {
+            if (value) { // Only append if value is not empty
+                formData.append(key, value);
+            }
+        });
         
         let fullGcsPath; 
 
@@ -91,8 +110,7 @@ const FileUploader = ({ token }) => {
                 throw new Error(uploadData.message || 'Initial upload failed.');
             }
             
-            fullGcsPath = uploadData.fullGcsPath; 
-            updateFileStatus(fileToProcess.id, 'processing', '2/4: Uploaded to GCS. Awaiting cloud function...');
+            fullGcsPath = uploadData.fullGcsPath;
         } catch (err) {
             console.error('Upload process error:', err);
             updateFileStatus(fileToProcess.id, 'error', `Error: ${err.message}`);
@@ -104,35 +122,50 @@ const FileUploader = ({ token }) => {
             return;
         }
 
-        const controller = new AbortController();
+        // --- Polling logic remains the same ---
+        let intervalId = null;
+        const POLLING_INTERVAL = 8000;
+        const POLLING_TIMEOUT = 15 * 60 * 1000;
 
-        fetchEventSource(`${BACKEND_URL}/api/admin/status?fileName=${encodeURIComponent(fullGcsPath)}`, {
-            method: 'GET',
-            headers: { 'Authorization': `Bearer ${token}` },
-            signal: controller.signal,
+        const pollTimeout = setTimeout(() => {
+            clearInterval(intervalId);
+            updateFileStatus(fileToProcess.id, 'error', 'Error: Processing timed out after 15 minutes.');
+        }, POLLING_TIMEOUT);
 
-            onopen(response) {
-                if (response.ok) return; 
-                updateFileStatus(fileToProcess.id, 'error', `Error: Auth failed (Code: ${response.status})`);
-                controller.abort();
-            },
-            onmessage(event) {
-                if (event.event === 'update') {
-                    const data = JSON.parse(event.data);
-                    updateFileStatus(fileToProcess.id, data.status, data.message);
-                    if (data.status === 'complete' || data.status === 'error') {
-                        controller.abort(); 
-                    }
+        const pollStatus = async () => {
+            try {
+                const statusUrl = new URL(`${BACKEND_URL}/api/admin/status`);
+                statusUrl.searchParams.append('fullGcsPath', fullGcsPath);
+
+                const res = await fetch(statusUrl.toString(), {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                });
+                if (!res.ok) {
+                     updateFileStatus(fileToProcess.id, 'error', `Error: Status check failed (Code: ${res.status})`);
+                     clearInterval(intervalId);
+                     clearTimeout(pollTimeout);
+                     return;
                 }
-            },
-            onclose() {},
-            onerror(err) {
-                updateFileStatus(fileToProcess.id, 'error', 'Error: Status connection failed.');
-                controller.abort(); 
-                throw err;
+                const data = await res.json();
+                
+                updateFileStatus(fileToProcess.id, data.status, data.message);
+
+                if (data.status === 'complete' || data.status === 'error') {
+                    clearInterval(intervalId);
+                    clearTimeout(pollTimeout);
+                }
+            } catch (err) {
+                 console.error('Polling error:', err);
+                 updateFileStatus(fileToProcess.id, 'error', 'Error: Status connection failed.');
+                 clearInterval(intervalId);
+                 clearTimeout(pollTimeout);
             }
-        });
-    }, [folderName, token, updateFileStatus]);
+        };
+
+        pollStatus(); 
+        intervalId = setInterval(pollStatus, POLLING_INTERVAL);
+        
+    }, [metadata, token, updateFileStatus]);
 
     useEffect(() => {
         if (!isUploading) return;
@@ -156,8 +189,14 @@ const FileUploader = ({ token }) => {
     };
 
     const handleStartUpload = () => {
-        if (!folderName.trim()) { setError('Please provide a folder name.'); return; }
-        if (files.filter(f => f.status === 'waiting').length === 0) { setError('No files are waiting for upload.'); return; }
+        if (!metadata.institution || !metadata.department || !metadata.courseCode) {
+            setError('Please fill in all mandatory metadata fields.');
+            return;
+        }
+        if (files.filter(f => f.status === 'waiting').length === 0) {
+            setError('No files are waiting for upload.');
+            return;
+        }
         setError('');
         setIsUploading(true);
     };
@@ -167,11 +206,49 @@ const FileUploader = ({ token }) => {
     return (
          <>
             <p>Upload files to be processed and stored in the knowledge base.</p>
-            <div className="upload-controls">
-                <div className="form-group">
-                    <label htmlFor="folderName">Target Folder Name (in GCS)</label>
-                    <input type="text" id="folderName" value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="e.g., MATH-302-Lecture-Notes" disabled={isUploading}/>
+            {/* --- MODIFIED: Metadata Form --- */}
+            <div className="metadata-form">
+                <div className="form-row">
+                    <div className="form-group mandatory">
+                        <label htmlFor="institution">Institution Short Name</label>
+                        <input type="text" id="institution" name="institution" value={metadata.institution} onChange={handleMetadataChange} placeholder="e.g., UBC" disabled={isUploading} required/>
+                    </div>
+                    <div className="form-group mandatory">
+                        <label htmlFor="department">Department</label>
+                        <input type="text" id="department" name="department" value={metadata.department} onChange={handleMetadataChange} placeholder="e.g., Mathematics" disabled={isUploading} required/>
+                    </div>
+                    <div className="form-group mandatory">
+                        <label htmlFor="courseCode">Course Code</label>
+                        <input type="text" id="courseCode" name="courseCode" value={metadata.courseCode} onChange={handleMetadataChange} placeholder="e.g., MATH100" disabled={isUploading} required/>
+                    </div>
                 </div>
+                <div className="form-row">
+                    <div className="form-group">
+                        <label htmlFor="professorFirstName">Professor First Name (Optional)</label>
+                        <input type="text" id="professorFirstName" name="professorFirstName" value={metadata.professorFirstName} onChange={handleMetadataChange} placeholder="e.g., John" disabled={isUploading}/>
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="professorLastName">Professor Last Name (Optional)</label>
+                        <input type="text" id="professorLastName" name="professorLastName" value={metadata.professorLastName} placeholder="e.g., Doe" disabled={isUploading}/>
+                    </div>
+                     <div className="form-group">
+                        <label htmlFor="year">Year (Optional)</label>
+                        <input type="number" id="year" name="year" value={metadata.year} onChange={handleMetadataChange} placeholder="e.g., 2024" disabled={isUploading}/>
+                    </div>
+                     <div className="form-group">
+                        <label htmlFor="semester">Semester (Optional)</label>
+                        <select id="semester" name="semester" value={metadata.semester} onChange={handleMetadataChange} disabled={isUploading}>
+                            <option value="">Select...</option>
+                            <option value="Fall">Fall</option>
+                            <option value="Winter">Winter</option>
+                            <option value="Spring">Spring</option>
+                            <option value="Summer">Summer</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div className="upload-controls">
                  <div className="form-group">
                     <label htmlFor="file-upload" className="file-upload-label">Select Files...</label>
                     <input id="file-upload" type="file" multiple onChange={handleFileSelect} ref={fileInputRef} disabled={isUploading}/>
@@ -198,7 +275,7 @@ const FileUploader = ({ token }) => {
 };
 
 
-// --- NEW Database Viewer Component ---
+// --- DbViewer component remains unchanged ---
 const DbViewer = ({ token }) => {
     const [tables, setTables] = useState([]);
     const [selectedTable, setSelectedTable] = useState(null); // { name, structure, data, totalRows }

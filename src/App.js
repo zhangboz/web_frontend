@@ -1,3 +1,5 @@
+// src/App.js
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import './App.css';
