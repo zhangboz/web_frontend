@@ -1,119 +1,76 @@
-# AI Homework Helper - Frontend
+# Homework Help AI web frontend — OpenAI edition
 
-This repository contains the React frontend for the AI Homework Helper application. The app is designed to assist students by analyzing images of homework problems and providing detailed, formatted explanations using AI.
+React web client for [Homework Help AI](https://github.com/zhangboz/homework-help-ai). It sends homework images/PDFs and handwriting to the backend, displays Markdown, mathematics and code, plays AI-generated speech, and downloads PDF/DOCX exports. The separate WeChat `frontend/` project is preserved and is outside this web migration.
 
-## 🎯 Design Philosophy
+The parent project and Oracle deployment guide are in a private repository; their links require an authorized GitHub account. This component repository remains independently usable.
 
-### 1. "Native-App" Experience on the Web
-Although this is a web application, the UI/UX is built with a **mobile-first** approach. The goal is to replicate the feel of a native mobile application when accessed via a mobile browser.
-*   **Sticky Navigation:** Bottom navigation bars and top headers are positioned to mimic iOS/Android app layouts.
-*   **Responsive CSS:** The layout adapts seamlessly between desktop and mobile, but the mobile view is the primary design target.
-*   **Interaction:** Touch targets and scroll behaviors are optimized for handheld use.
+## Current status — 2026-11-04
 
-### 2. Math & Code as First-Class Citizens
-Since the target audience is students (STEM focus), text rendering is the most critical part of the application. The `ResultsPage.js` is heavily engineered to handle complex data formats:
-*   **Markdown:** For general structure.
-*   **LaTeX:** For precise mathematical formula rendering (via `KaTeX`).
-*   **Syntax Highlighting:** For coding homework snippets.
+- The active backend uses OpenAI: two `gpt-6.1-terra` Responses calls for answers and spoken explanation text, a single call for handwriting transcription, and `gpt-realtime-2.1-mini` for WAV speech.
+- Local email/Google login and Stripe TEST subscription flows are restored. Valid `active` or `trialing` subscriptions grant premium access.
+- Oracle deployment is **under testing**, with SSH-only private preview configuration. Local Linux tests passed; Phoenix Always Free capacity is currently unavailable, no VM has been provisioned, and actual ARM64/cloud checks remain pending.
+- The old Render system is **archived and inactive**. This update does not re-enable it or switch the existing domain/DNS.
+- GCS textbook upload and cloud transcription are paused. The admin page reflects the pause; historical database records remain available to authorized administrators.
 
----
+See the [project setup and status](https://github.com/zhangboz/homework-help-ai/blob/main/README.md), [backend repository](https://github.com/zhangboz/backend), and [Oracle deployment guide](https://github.com/zhangboz/homework-help-ai/blob/main/deploy/oracle/README.md).
 
-## 🚀 Key Features & Workflows
+## User flows
 
-### 1. The Core User Loop
-The application is state-driven (managed in `App.js`) and follows a strict linear flow:
-1.  **Input:** User captures or uploads a photo of a problem.
-2.  **Preview:** User confirms quality (`PreviewPage`).
-3.  **Processing:** The app enters a polling/waiting state while the backend processes the image (`WaitingPage`).
-4.  **Result:** The AI response is streamed or displayed (`ResultsPage`).
+1. Upload or capture an image, or choose a PDF; preview and submit it.
+2. Display the returned answer and explanation with Markdown, KaTeX and syntax highlighting. If explanation generation fails, retain the answer and show the warning.
+3. Request AI-generated speech through the backend and play the returned WAV. Speech failure leaves the answer intact.
+4. Queue a PDF or Word export, poll its status, then use the signed download link. Show the backend's safe error explanation on failure and allow retry; expire completed links after the returned deadline.
 
-### 2. The Results Engine (`ResultsPage.js`)
-This is the most complex component in the codebase. It parses the raw string response from the backend and renders it using a specific stack of libraries:
-*   `react-markdown`
-*   `remark-math` & `rehype-katex` (for LaTeX/Math)
-*   `react-syntax-highlighter` (for code blocks)
-*   **Audio Generation:** It also handles text-to-speech requests for auditory explanations.
-*   **Exporting:** Includes logic to export the rendered result to PDF or Word.
+The app preserves the current result flow in `sessionStorage`. Email login, email confirmation and Google OAuth remain available independently of the retired Google AI services. Subscription cancellation and resumption use Stripe TEST endpoints; live charges are not enabled.
 
-### 3. Authentication & State
-*   **Google OAuth:** integrated for seamless sign-in.
-*   **Session Resilience:** The app uses `sessionStorage` snapshots to save the application flow. If a user refreshes the page on the "Results" screen, the app restores the state rather than booting them back to the home screen.
+## Local development
 
----
+Use the complete project checkout when starting the entire stack through `backend` scripts:
 
-## 🛠️ Admin Portal & RAG Architecture (WIP)
+```powershell
+# In web_frontend
+npm ci
 
-> ⚠️ **Note:** The Admin features are currently located at `/admin` and are accessible via `AdminPage/index.js`.
-
-The Admin Portal is an internal tool designed to power the **RAG (Retrieval-Augmented Generation)** capabilities of the backend. To increase answer accuracy, we use this portal to ingest "truthful" academic content.
-
-### Components:
-*   **FileUploader.js:** Allows uploading of raw PDF textbooks, lecture slides, and notes. It attaches metadata (Institution, Course Code, Professor) and sends them to Google Cloud Storage via the backend.
-*   **DbViewer.js:** A dashboard to view the state of the SQL database and the vector embeddings generated from the uploaded files.
-
-### Future Roadmap for Admin
-*   **Decoupling:** Currently, the Admin portal lives within the main consumer web app. For security purposes (DNS separation and access control), the plan is to move this logic to a separate repository/subdomain in the future.
-
----
-
-## 💻 Technical Stack
-
-*   **Framework:** React (Create React App)
-*   **Routing:** React Router v6
-*   **Styling:** Pure CSS (Responsive, Mobile-first)
-*   **Math Rendering:** KaTeX
-*   **State Management:** React Hooks (`useState`, `useEffect`, `useCallback`)
-*   **Build Tool:** Webpack (via CRA)
-
----
-
-## ⚙️ Setup & Installation
-
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/your-repo.git
-    cd your-repo
-    ```
-
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
-
-3.  **Environment Variables:**
-    Create a `.env` file in the root directory. You will need the following keys:
-    ```env
-    REACT_APP_BACKEND_URL=http://localhost:5000
-    REACT_APP_GOOGLE_CLIENT_ID=your_google_client_id
-    ```
-
-4.  **Run the development server:**
-    ```bash
-    npm start
-    ```
-    Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
-
----
-
-## 📂 Project Structure Overview
-
-```text
-src/
-├── App.js              # Main State Machine & Routing Logic
-├── App.css             # Global & Layout Styles
-├── components/
-│   ├── HomePage.js     # Mode selection (Homework vs Notes)
-│   ├── ResultsPage.js  # The core rendering engine (Markdown/Latex)
-│   ├── AdminPage/      # RAG Data Entry Tools (WIP)
-│   │   ├── FileUploader.js
-│   │   ├── DbViewer.js
-│   │   └── index.js
-│   ├── BottomNav.js    # Mobile-style navigation
-│   └── ... (Auth, Waiting, Preview pages)
-└── index.js            # Entry point
+# Change to the sibling backend directory
+cd ../backend
+npm ci
+npm run local:start
+npm run local:check
 ```
 
-## 🤝 Contribution Guidelines
+Alternatively, run this web client separately after starting the backend:
 
-*   **CSS:** When modifying styles, please test on a mobile viewport (Chrome DevTools Mobile Simulator) to ensure the "native app" feel is preserved.
-*   **Admin Tools:** If working on `AdminPage`, please coordinate regarding the API endpoints, as this section is actively evolving to support the Vector Database backend.
+```powershell
+npm ci
+npm start
+```
+
+Create an ignored `.env.local` file for public frontend configuration:
+
+```dotenv
+REACT_APP_BACKEND_URL=http://localhost:5000
+REACT_APP_GOOGLE_CLIENT_ID=your_public_google_client_id
+```
+
+Open [localhost:3000](http://localhost:3000). The backend defaults to `http://localhost:5000`; its Google OAuth callback is `/api/login/auth/google/callback` on the backend origin. Frontend environment values are embedded at build time, so rebuild when the deployed backend URL changes.
+
+**Never put `OPENAI_API_KEY`, Stripe secret keys, SMTP passwords or Google client secrets in this repository's environment or browser bundle.** They belong only in the backend. The Google client ID above is public configuration.
+
+## Validation and builds
+
+```powershell
+npm test -- --watchAll=false --runInBand
+npm run build
+```
+
+Production serves the generated `build/` assets through a web server. The Oracle configuration uses Caddy to serve those assets and proxy `/api/*`; it does not publish the React development server. Public release remains blocked on actual ARM64/cloud validation and complete backend TeX filesystem isolation. Keep the current Oracle preview private as described in its deployment guide.
+
+## Main code paths
+
+- `src/App.js`: routing, request flow, authentication and subscription state.
+- `src/components/ResultsPage.js`: Markdown/math/code rendering, speech playback and export job lifecycle.
+- `src/components/AccountPage.js`: account and Stripe TEST subscription actions.
+- `src/components/AdminPage/`: authorized database views and the paused textbook-upload notice.
+- `src/utils/`: shared subscription access rules.
+
+The UI uses React, React Router, Create React App, `react-markdown`, `remark-math`, `rehype-katex`, and `react-syntax-highlighter`. Retain the responsive mobile layout when changing these flows.

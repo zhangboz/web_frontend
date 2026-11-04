@@ -18,6 +18,7 @@ import NotificationBanner from './components/NotificationBanner'; // <-- Import 
 import { Routes, Route } from 'react-router-dom';
 import AdminPage from './components/AdminPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import { hasSubscriptionAccess } from './utils/subscription';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
 
@@ -43,7 +44,6 @@ const saveSnapshot = (flowState, data) => {
   try {
     const snapshot = { flowState, data };
     sessionStorage.setItem('appSnapshot', JSON.stringify(snapshot));
-    console.log('[App Snapshot] State saved:', snapshot);
   } catch (e) {
     console.error('[App Snapshot] Failed to save state:', e);
   }
@@ -54,7 +54,6 @@ const restoreSnapshot = () => {
     const savedState = sessionStorage.getItem('appSnapshot');
     if (savedState) {
       const parsedState = JSON.parse(savedState);
-      console.log('[App Snapshot] State read from session storage:', parsedState);
       return parsedState;
     }
   } catch (e) {
@@ -200,7 +199,7 @@ function App() {
     const pollStatus = async () => {
       attempts++;
       const updatedUser = await fetchUserStatus();
-      if (updatedUser && updatedUser.subscriptionStatus === 'active') {
+      if (updatedUser && hasSubscriptionAccess(updatedUser.subscriptionStatus)) {
         const restored = restoreSnapshot();
         if (restored?.flowState === 'results') {
           console.log('[App.js] Payment finalized, restoring to Results page.');
@@ -389,7 +388,7 @@ function App() {
       if (!response.ok) throw new Error(data.message);
       
       // Handle response that may or may not have reply2
-      const newResponse = { reply1: data.reply1, reply2: data.reply2 || null };
+      const newResponse = { reply1: data.reply1, reply2: data.reply2 || null, warning: data.warning || null };
       
       setAiResponse(newResponse);
       saveSnapshot('results', { aiResponse: newResponse });
@@ -476,6 +475,7 @@ function App() {
 
     if (flowState === 'results' || (flowState === 'login_request' && aiResponse)) {
       return <ResultsPage 
+        key={`${user?.id || 'anonymous'}:${aiResponse?.reply1 || ''}`}
         response={aiResponse} 
         backendUrl={BACKEND_URL} 
         user={user} 

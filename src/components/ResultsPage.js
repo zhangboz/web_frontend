@@ -9,6 +9,8 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { okaidia } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import 'katex/dist/katex.min.css';
 import './ResultsPage.css';
+import { hasSubscriptionAccess } from '../utils/subscription';
+import { emptyExportJob, exportExpiry, restoreExportState } from '../utils/exportState';
 
 // This component remains unchanged and is perfectly fine.
 const CodeBlock = ({ inline, className, children }) => {
@@ -38,37 +40,10 @@ const getExportButtonText = (status) => {
 }
 
 // --- NEW HELPER: Logic to load and validate state from sessionStorage ---
-const getInitialExportState = () => {
-    const defaultState = {
-        docx: { status: 'idle', jobId: null, downloadUrl: null, error: null },
-        pdf: { status: 'idle', jobId: null, downloadUrl: null, error: null },
-    };
-
-    try {
-        const storedState = sessionStorage.getItem('exportState');
-        if (!storedState) return defaultState;
-        
-        const parsedState = JSON.parse(storedState);
-        
-        // Validate the loaded state to remove expired URLs
-        Object.keys(parsedState).forEach(format => {
-            const job = parsedState[format];
-            if (job.status === 'completed' && (!job.expiresAt || Date.now() > job.expiresAt)) {
-                // This URL has expired, reset it to the default idle state.
-                parsedState[format] = { status: 'idle', jobId: null, downloadUrl: null, error: null };
-            }
-        });
-        return parsedState;
-
-    } catch (e) {
-        // If parsing fails for any reason, return a clean state.
-        return defaultState;
-    }
-};
-
 function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubscribe, audioCache, setAudioCache, isBottomNavVisible }) {
   // --- MODIFIED: useState now uses our helper to load from sessionStorage on initial render ---
-  const [exportState, setExportState] = useState(getInitialExportState);
+  const [exportState, setExportState] = useState(() => restoreExportState(
+    sessionStorage.getItem('exportState'), response?.reply1 || '', user?.id || null));
 
   // --- NEW: This effect saves the state to sessionStorage whenever it changes ---
   useEffect(() => {
@@ -83,14 +58,30 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
             stateToStore[format] = { status: 'idle', jobId: null, downloadUrl: null, error: null };
         }
     });
-    sessionStorage.setItem('exportState', JSON.stringify(stateToStore));
+    sessionStorage.setItem('exportState', JSON.stringify({
+      sourceText: response?.reply1 || '', ownerId: user?.id || null, jobs: stateToStore,
+    }));
+  }, [exportState, response, user?.id]);
+
+  useEffect(() => {
+    const deadlines = Object.values(exportState).filter(job => job.status === 'completed').map(job => job.expiresAt);
+    if (!deadlines.length) return undefined;
+    const timeout = setTimeout(() => setExportState(previous => {
+      const next = { ...previous };
+      for (const format of ['docx', 'pdf']) {
+        if (next[format].status === 'completed' && next[format].expiresAt <= Date.now()) next[format] = emptyExportJob();
+      }
+      return next;
+    }), Math.max(0, Math.min(...deadlines) - Date.now()));
+    return () => clearTimeout(timeout);
   }, [exportState]);
 
   // State for audio logic
   const [audioUrl, setAudioUrl] = React.useState(null);
   const pollingRefs = useRef({});
+  const audioRequestRef = useRef(null);
 
-  const hasActiveSubscription = user && user.subscriptionStatus === 'active';
+  const hasActiveSubscription = user && hasSubscriptionAccess(user.subscriptionStatus);
   
   const reply1Content = (response?.reply1 && typeof response.reply1 === 'string') ? response.reply1 : "";
   const reply2Content = (response?.reply2 && typeof response.reply2 === 'string') ? response.reply2 : null;
@@ -132,15 +123,21 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
 
         if (data.state === 'completed') {
           clearInterval(intervalId);
-          // GCS signed URLs from the worker last 15 minutes. We set our local timer to 14 mins to be safe.
-          const expiresAt = Date.now() + 14 * 60 * 1000; 
+          const expiresAt = exportExpiry(data.result?.expiresAt);
+          if (!data.result?.downloadUrl || expiresAt <= Date.now()) throw new Error('This export has expired. Please export again.');
           setExportState(prev => ({
             ...prev,
             [format]: { status: 'completed', downloadUrl: data.result.downloadUrl, error: null, expiresAt }
           }));
+        } else if (data.state === 'expired') {
+          clearInterval(intervalId);
+          setExportState(prev => ({ ...prev, [format]: { ...emptyExportJob(), error: data.message || 'This download has expired. Please export again.' } }));
         } else if (data.state === 'failed') {
           clearInterval(intervalId);
-          setExportState(prev => ({ ...prev, [format]: { ...prev[format], status: 'failed', error: 'Conversion failed on the server.' } }));
+          const message = typeof data.message === 'string' && data.message.trim()
+            ? data.message.trim()
+            : 'Conversion failed on the server. Please try exporting again.';
+          setExportState(prev => ({ ...prev, [format]: { ...prev[format], status: 'failed', error: message } }));
         }
       } catch (error) {
         clearInterval(intervalId);
@@ -205,12 +202,15 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
   // Voice explanation function
   const doVoiceExplain = async () => {
     if (!reply2Content || isFetchingAudio) return;
+    const controller = new AbortController();
+    audioRequestRef.current = controller;
     setAudioCache(prevCache => new Map(prevCache).set(reply2Content, { status: 'pending' }));
     try {
       const response = await fetch(`${backendUrl}/api/speech`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'audio/wav', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ text: reply2Content, voice: "" }),
+        signal: controller.signal,
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Synthesis failed.' }));
@@ -219,8 +219,14 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
       const newAudioBlob = await response.blob();
       setAudioCache(prevCache => new Map(prevCache).set(reply2Content, { status: 'success', data: newAudioBlob }));
     } catch (error) {
+      if (error.name === 'AbortError') {
+        setAudioCache(previous => { const next = new Map(previous); next.delete(reply2Content); return next; });
+        return;
+      }
       console.error('Error fetching speech:', error);
       setAudioCache(prevCache => new Map(prevCache).set(reply2Content, { status: 'error', error: error.message }));
+    } finally {
+      if (audioRequestRef.current === controller) audioRequestRef.current = null;
     }
   };
   
@@ -229,6 +235,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
     const currentPollers = pollingRefs.current;
     return () => {
       Object.values(currentPollers).forEach(clearInterval);
+      audioRequestRef.current?.abort();
     };
   }, []);
 
@@ -236,6 +243,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
   return (
     <div className="results-page-layout">
       <div className="results-scroll-container">
+        {response?.warning && <p role="status" className="error-message">{response.warning}</p>}
         <div className="results-content markdown-body">
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}
@@ -252,6 +260,7 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
         {/* Voice Explanation Button & Player */}
         {reply2Content && (
           <div className="action-item-vertical">
+            <small>AI-generated voice / AI 生成语音</small>
             {audioUrl && !isFetchingAudio ? (
               <audio controls src={audioUrl} className="full-width-audio-player"></audio>
             ) : (

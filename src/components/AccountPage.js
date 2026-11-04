@@ -2,6 +2,7 @@
 
 import React from 'react';
 import './AccountPage.css';
+import { hasSubscriptionAccess } from '../utils/subscription';
 
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A';
@@ -20,10 +21,10 @@ function AccountPage({ user, isUpdatingSubscription, onLogout, onSubscribe, onCa
 
   const renderSubscriptionContent = () => {
     // ... this function remains exactly the same
-    if (user.subscriptionStatus === 'active' && user.cancelAtPeriodEnd) {
+    if (hasSubscriptionAccess(user.subscriptionStatus) && user.cancelAtPeriodEnd) {
       return (
         <div className="subscription-card">
-          <p className="status-text active">Status: Active ✅ (Cancellation Pending)</p>
+          <p className="status-text active">Status: {user.subscriptionStatus === 'trialing' ? 'Trial' : 'Active'} ✅ (Cancellation Pending)</p>
           <p>Your access will end on {periodEndDate}.</p>
           <button onClick={onReactivateSubscription} className="button primary-button" disabled={isUpdatingSubscription}>
             {isUpdatingSubscription && user.intendedAction === 'reactivate' ? 'Updating...' : 'Reactivate Subscription'}
@@ -32,11 +33,11 @@ function AccountPage({ user, isUpdatingSubscription, onLogout, onSubscribe, onCa
       );
     }
     
-    if (user.subscriptionStatus === 'active') {
+    if (hasSubscriptionAccess(user.subscriptionStatus)) {
       return (
         <div className="subscription-card">
-          <p className="status-text active">Status: Active ✅</p>
-          <p>Your next billing date is on {periodEndDate}.</p>
+          <p className="status-text active">Status: {user.subscriptionStatus === 'trialing' ? 'Trial' : 'Active'} ✅</p>
+          <p>{user.subscriptionStatus === 'trialing' ? 'Your trial ends' : 'Your next billing date is'} on {periodEndDate}.</p>
           <button onClick={onCancelSubscription} className="button secondary-button" disabled={isUpdatingSubscription}>
             {isUpdatingSubscription && user.intendedAction === 'cancel' ? 'Updating...' : 'Cancel Subscription'}
           </button>
@@ -71,7 +72,7 @@ function AccountPage({ user, isUpdatingSubscription, onLogout, onSubscribe, onCa
     return (
       <div className="subscription-card">
         <p className="status-text inactive">Status: Inactive ❌</p>
-        <p>Start your 7 Days Trail with Premium Plan.</p>
+        <p>Start your 7-day trial with the Premium plan.</p>
         {premiumFeatures}
         <button onClick={() => onSubscribe('/account')} className="button primary-button">
           Subscribe Now
