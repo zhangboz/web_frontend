@@ -10,7 +10,8 @@ jest.mock('react-syntax-highlighter', () => ({ Prism: ({ children }) => <pre>{ch
 jest.mock('react-syntax-highlighter/dist/esm/styles/prism', () => ({ okaidia: {} }));
 
 const props = { response: { reply1: 'Synthetic answer', reply2: null }, backendUrl: 'https://api.example.test',
-  user: { id: 42, subscriptionStatus: 'trialing' }, token: 'synthetic-token', onRequestLogin: jest.fn(),
+  user: { id: 42, subscriptionStatus: 'trialing', subscriptionSource: 'stripe', subscriptionVerified: true,
+    subscriptionSyncState: 'verified' }, token: 'synthetic-token', onRequestLogin: jest.fn(),
   onSubscribe: jest.fn(), audioCache: new Map(), setAudioCache: jest.fn() };
 const success = data => ({ ok: true, status: 200, json: async () => data });
 const storeJob = job => sessionStorage.setItem('exportState', JSON.stringify({ ownerId: 42, sourceText: props.response.reply1, jobs: { pdf: job } }));

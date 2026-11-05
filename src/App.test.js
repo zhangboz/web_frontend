@@ -7,6 +7,7 @@ test('trial user can cancel and pending cancellation can be restored', () => {
   const cancel = jest.fn();
   const restore = jest.fn();
   const props = { user: { email: 'test@example.invalid', subscriptionStatus: 'trialing',
+    subscriptionSource: 'stripe', subscriptionVerified: true, subscriptionSyncState: 'verified', canManageSubscription: true,
     currentPeriodEnd: '2030-01-01T00:00:00Z' }, onCancelSubscription: cancel,
     onReactivateSubscription: restore, onSubscribe: jest.fn() };
   const { rerender } = render(<AccountPage {...props} />);
@@ -19,10 +20,17 @@ test('trial user can cancel and pending cancellation can be restored', () => {
   expect(restore).toHaveBeenCalledTimes(1);
 });
 
-test('only active and trialing subscription states grant premium access', () => {
-  expect(hasSubscriptionAccess('active')).toBe(true);
-  expect(hasSubscriptionAccess('trialing')).toBe(true);
-  for (const state of ['inactive', 'incomplete', 'past_due', 'canceled']) expect(hasSubscriptionAccess(state)).toBe(false);
+test('only currently verified Stripe active and trialing states grant premium access', () => {
+  const verified = { subscriptionSource: 'stripe', subscriptionVerified: true, subscriptionSyncState: 'verified' };
+  expect(hasSubscriptionAccess({ ...verified, subscriptionStatus: 'active' })).toBe(true);
+  expect(hasSubscriptionAccess({ ...verified, subscriptionStatus: 'trialing' })).toBe(true);
+  for (const state of ['inactive', 'incomplete', 'past_due', 'canceled']) {
+    expect(hasSubscriptionAccess({ ...verified, subscriptionStatus: state })).toBe(false);
+  }
+  expect(hasSubscriptionAccess('active')).toBe(false);
+  expect(hasSubscriptionAccess({ ...verified, subscriptionStatus: 'active', subscriptionVerified: false })).toBe(false);
+  expect(hasSubscriptionAccess({ ...verified, subscriptionStatus: 'active', subscriptionSyncState: 'unavailable' })).toBe(false);
+  expect(hasSubscriptionAccess({ ...verified, subscriptionStatus: 'active', subscriptionSource: 'database' })).toBe(false);
 });
 
 test('export cache preserves server expiry, rejects expired links and other users or documents', () => {

@@ -19,6 +19,7 @@ import { Routes, Route } from 'react-router-dom';
 import AdminPage from './components/AdminPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import { hasSubscriptionAccess } from './utils/subscription';
+import useUserStatus from './hooks/useUserStatus';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
 
@@ -66,8 +67,7 @@ const restoreSnapshot = () => {
 function App() {
   const [flowState, setFlowState] = useState('initializing');
   const [productMode, setProductMode] = useState('homework'); // <-- NEW STATE FOR PRODUCT
-  const [currentView, setCurrentView] = useState('home');
-  const [user, setUser] = useState(null);
+  const [currentView, setCurrentView] = useState(() => window.location.pathname === '/account' ? 'account' : 'home');
   const [token, setToken] = useState(() => localStorage.getItem('token'));
   const [language, setLanguage] = useState('en');
   const [authView, setAuthView] = useState('login');
@@ -143,7 +143,6 @@ function App() {
     localStorage.removeItem('user');
     sessionStorage.removeItem('appSnapshot');
     setToken(null);
-    setUser(null);
     // When logging out, language state is reset by the useEffect below
     setCurrentView('home');
     setFlowState('idle');
@@ -151,55 +150,34 @@ function App() {
     setNotification(null); // <-- Also clear notification on logout
   }, []);
 
-  // MODIFIED: This function now only fetches and sets the user object.
-  // It returns the user data so the caller can decide what to do with it.
-  const fetchUserStatus = useCallback(async () => {
-    if (!token) {
-      setUser(null);
-      return null;
-    }
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/user/status`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error("Invalid session");
-      const data = await response.json();
-      setUser(data.user);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      return data.user; // Return the fetched user
-    } catch (error) {
-      console.error('Failed to fetch user status:', error.message);
-      handleLogout();
-      return null;
-    }
-  }, [token, handleLogout]);
+  const { user, isRefreshing: isRefreshingSubscription, error: subscriptionError, refresh: fetchUserStatus } = useUserStatus({
+    token, backendUrl: BACKEND_URL, onUnauthorized: handleLogout,
+    accountVisible: currentView === 'account' && flowState === 'idle',
+  });
+  const languageLoadedForToken = useRef(null);
 
   // MODIFIED: This effect now handles initial data loading when a user logs in or out.
   useEffect(() => {
-    if (token) {
-      const loadInitialData = async () => {
-        const loadedUser = await fetchUserStatus();
-        // Set language based on the user's saved preference ONLY on initial load.
-        if (loadedUser) {
-          setLanguage(loadedUser.language || 'en');
-        }
-      };
-      loadInitialData();
-    } else {
-      // If there's no token (user is logged out), reset language to default.
+    if (!token) {
+      languageLoadedForToken.current = null;
       setLanguage('en');
+    } else if (user && languageLoadedForToken.current !== token) {
+      languageLoadedForToken.current = token;
+      setLanguage(user.language || 'en');
     }
-  }, [token, fetchUserStatus]);
+  }, [token, user]);
 
 
   useEffect(() => {
     if (flowState !== 'finalizing_payment') return;
+    let stopped = false;
     let attempts = 0;
     const maxAttempts = 10;
     const pollStatus = async () => {
       attempts++;
       const updatedUser = await fetchUserStatus();
-      if (updatedUser && hasSubscriptionAccess(updatedUser.subscriptionStatus)) {
+      if (stopped || !localStorage.getItem('token')) return;
+      if (hasSubscriptionAccess(updatedUser)) {
         const restored = restoreSnapshot();
         if (restored?.flowState === 'results') {
           console.log('[App.js] Payment finalized, restoring to Results page.');
@@ -210,15 +188,16 @@ function App() {
           setFlowState('idle');
           setCurrentView('account');
         }
-      } else if (attempts < maxAttempts) {
+      } else if (updatedUser && !['unavailable', 'unlinked', 'foreign'].includes(updatedUser.subscriptionSyncState) && attempts < maxAttempts) {
         pollingTimeoutRef.current = setTimeout(pollStatus, 2000);
       } else {
-        setErrorMessage("Payment confirmed, but account activation is delayed.");
-        setFlowState('error');
+        setNotification({ type: 'error', message: 'Your subscription could not be confirmed yet. Please retry the status check on your account page.' });
+        setFlowState('idle');
+        setCurrentView('account');
       }
     };
     pollStatus();
-    return () => clearTimeout(pollingTimeoutRef.current);
+    return () => { stopped = true; clearTimeout(pollingTimeoutRef.current); };
   }, [flowState, fetchUserStatus]);
 
   const handleLanguageChange = (newLanguage) => {
@@ -441,7 +420,7 @@ function App() {
   };
   
   const handleNavClick = (view) => {
-    if (view === 'account' && !user) {
+    if (view === 'account' && !token) {
       requestLogin();
       return; 
     }
@@ -450,6 +429,7 @@ function App() {
       setFlowState('results');
       setCurrentView('results');
     } else {
+      if (view === 'account' && currentView === 'account') void fetchUserStatus();
       setFlowState('idle');
       setCurrentView(view);
     }
@@ -485,6 +465,8 @@ function App() {
         language={language}
         onRequestLogin={requestLogin} 
         onSubscribe={handleSubscribe} 
+        onRefreshSubscription={fetchUserStatus}
+        isRefreshingSubscription={isRefreshingSubscription}
         audioCache={audioCache}
         setAudioCache={setAudioCache}
         isBottomNavVisible={showBottomNav}
@@ -513,9 +495,12 @@ function App() {
       default:
         switch (currentView) {
           case 'account':
-            return user ? <AccountPage 
+            return token ? <AccountPage
               user={user} 
               isUpdatingSubscription={isUpdatingSubscription} 
+              isRefreshingSubscription={isRefreshingSubscription}
+              subscriptionError={subscriptionError}
+              onRefreshSubscription={fetchUserStatus}
               onLogout={handleLogout} 
               onSubscribe={handleSubscribe} 
               onCancelSubscription={handleCancelSubscription}
@@ -568,6 +553,7 @@ function App() {
                       activeView={currentView} 
                       onNavClick={handleNavClick} 
                       user={user} 
+                      isLoggedIn={Boolean(token)}
                       hasResults={!!aiResponse}
                     />
                   }

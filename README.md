@@ -20,6 +20,8 @@ See the [backend repository](https://github.com/zhangboz/backend) and [Render + 
 
 The current result flow is saved in `sessionStorage`. Export status, ownership and bytes live in backend PostgreSQL and survive API restarts. Download links expire after 15 minutes; backend file retention is one hour. The cloud Word sample contained native math; other model runs may use equation images. Exports no longer require a local converter or worker.
 
+Subscription status comes from a fresh backend verification against Stripe. The client does not trust a status saved in local storage. It refreshes on login, account navigation and browser foregrounding, with a manual refresh/retry button. Premium actions require a verified `active` or `trialing` result; unavailable verification preserves login and disables billing actions until retry succeeds. Past dates are not presented as a future billing date. Checkout return polling reports success only after the backend verifies the subscription.
+
 ## Local development
 
 Use Node 24 LTS. In the full checkout:
@@ -71,4 +73,4 @@ The deployed production build serves the new API origin. Actual cloud API tests 
 
 The UI uses React Router, Create React App, `react-markdown`, `remark-math`, `rehype-katex` and `react-syntax-highlighter`. Preserve its responsive mobile layout.
 
-Release verification: all 31 React tests and `npm run build` passed. Deployment uses the dedicated `codex/render-neon-free` branch; publishing it does not update the old master-based Render site.
+Release verification: all 47 React tests and `npm run build` passed, including stale-state rejection, foreground refresh, account loading/retry, payment actions and token changes. Deployment uses the dedicated `codex/render-neon-free` branch; publishing it does not update the old master-based Render site.

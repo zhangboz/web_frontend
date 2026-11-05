@@ -9,7 +9,8 @@ jest.mock('react-syntax-highlighter', () => ({ Prism: ({ children }) => <pre>{ch
 jest.mock('react-syntax-highlighter/dist/esm/styles/prism', () => ({ okaidia: {} }));
 
 const props = () => ({ response: { reply1: 'Answer: x = 2', reply2: 'Subtract three and divide by two.' },
-  backendUrl: 'http://localhost:5000', user: { id: 42, subscriptionStatus: 'trialing' }, token: 'test-token',
+  backendUrl: 'http://localhost:5000', user: { id: 42, subscriptionStatus: 'trialing', subscriptionSource: 'stripe',
+    subscriptionVerified: true, subscriptionSyncState: 'verified' }, token: 'test-token',
   onRequestLogin: jest.fn(), onSubscribe: jest.fn(), audioCache: new Map(), setAudioCache: jest.fn() });
 
 beforeEach(() => { sessionStorage.clear(); global.fetch = jest.fn(); });
@@ -32,6 +33,33 @@ test('trial user can request AI-labeled voice without subscribing again', async 
   expect(global.fetch).toHaveBeenCalledWith('http://localhost:5000/api/speech', expect.objectContaining({
     headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
   }));
+  expect(values.onSubscribe).not.toHaveBeenCalled();
+});
+
+test('an unverified old active status cannot dispatch exports, voice or a duplicate checkout', () => {
+  const values = props();
+  const retry = jest.fn();
+  render(<ResultsPage {...values} onRefreshSubscription={retry}
+    user={{ ...values.user, subscriptionStatus: 'active', subscriptionVerified: false, subscriptionSyncState: 'unavailable' }} />);
+  const voice = screen.getByRole('button', { name: /Explain in Voice/ });
+  const pdf = screen.getByRole('button', { name: /Export to PDF/ });
+  expect(voice).toBeDisabled();
+  expect(pdf).toBeDisabled();
+  fireEvent.click(voice);
+  fireEvent.click(pdf);
+  expect(global.fetch).not.toHaveBeenCalled();
+  expect(values.onSubscribe).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: /Retry status check/ }));
+  expect(retry).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('Answer: x = 2')).toBeInTheDocument();
+});
+
+test('verified legacy canceled subscriptions explain unavailable actions without offering another checkout', () => {
+  const values = props();
+  render(<ResultsPage {...values} user={{ ...values.user, subscriptionStatus: 'canceled', canSubscribe: false,
+    subscriptionMessage: 'This subscription cannot be managed from this site.' }} />);
+  expect(screen.getByText('This subscription cannot be managed from this site.')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Export to Word/ })).toBeDisabled();
   expect(values.onSubscribe).not.toHaveBeenCalled();
 });
 

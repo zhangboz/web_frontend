@@ -9,7 +9,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { okaidia } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import 'katex/dist/katex.min.css';
 import './ResultsPage.css';
-import { hasSubscriptionAccess } from '../utils/subscription';
+import { canStartSubscription, hasSubscriptionAccess, isVerifiedSubscription, SUBSCRIPTION_UNAVAILABLE } from '../utils/subscription';
 import { emptyExportJob, restoreExportState, persistExportState, isPendingExport, createExportRunner } from '../utils/exportState';
 import ConceptExplanation from './ConceptExplanation';
 
@@ -41,7 +41,8 @@ const getExportButtonText = (status) => {
 }
 
 // --- NEW HELPER: Logic to load and validate state from sessionStorage ---
-function ResultsPage({ response, backendUrl, user, token, anonymousId, language = 'en', onRequestLogin, onSubscribe, audioCache, setAudioCache, isBottomNavVisible }) {
+function ResultsPage({ response, backendUrl, user, token, anonymousId, language = 'en', onRequestLogin, onSubscribe,
+  onRefreshSubscription, isRefreshingSubscription = false, audioCache, setAudioCache, isBottomNavVisible }) {
   // --- MODIFIED: useState now uses our helper to load from sessionStorage on initial render ---
   const [exportState, setExportState] = useState(() => restoreExportState(
     sessionStorage.getItem('exportState'), response?.reply1 || '', user?.id || null));
@@ -71,7 +72,9 @@ function ResultsPage({ response, backendUrl, user, token, anonymousId, language 
   const [audioUrl, setAudioUrl] = React.useState(null);
   const audioRequestRef = useRef(null);
 
-  const hasActiveSubscription = user && hasSubscriptionAccess(user.subscriptionStatus);
+  const hasActiveSubscription = hasSubscriptionAccess(user);
+  const subscriptionNeedsCheck = token && (!user || (!isVerifiedSubscription(user) && user.subscriptionSyncState !== 'none'));
+  const subscriptionRestricted = token && user && !hasActiveSubscription && !canStartSubscription(user);
 
   const reply1Content = (response?.reply1 && typeof response.reply1 === 'string') ? response.reply1 : "";
   const reply2Content = (response?.reply2 && typeof response.reply2 === 'string') ? response.reply2 : null;
@@ -128,8 +131,9 @@ function ResultsPage({ response, backendUrl, user, token, anonymousId, language 
 
   // Premium feature gate
   const handlePremiumFeature = (featureAction, featureName) => {
-    if (!user) return onRequestLogin();
+    if (!token) return onRequestLogin();
     if (!hasActiveSubscription) {
+      if (!canStartSubscription(user)) return;
       if(window.confirm(`'${featureName}' is a premium feature. Would you like to subscribe now?`)) {
         onSubscribe();
       }
@@ -193,6 +197,11 @@ function ResultsPage({ response, backendUrl, user, token, anonymousId, language 
 
       <div className={`results-action-bar-vertical ${isBottomNavVisible ? 'with-nav' : ''}`}>
 
+        {(isRefreshingSubscription || subscriptionNeedsCheck || subscriptionRestricted) && <div className="action-item-vertical">
+          <p role="status">{isRefreshingSubscription ? 'Checking subscription status…' : user?.subscriptionMessage || SUBSCRIPTION_UNAVAILABLE}</p>
+          {!isRefreshingSubscription && <button onClick={onRefreshSubscription} className="button secondary-button">Retry status check</button>}
+        </div>}
+
         {/* Voice Explanation Button & Player */}
         {reply2Content && (
           <div className="action-item-vertical">
@@ -200,7 +209,7 @@ function ResultsPage({ response, backendUrl, user, token, anonymousId, language 
             {audioUrl && !isFetchingAudio ? (
               <audio controls src={audioUrl} className="full-width-audio-player"></audio>
             ) : (
-              <button onClick={() => handlePremiumFeature(doVoiceExplain, 'Voice Explanation')} className="button" disabled={isFetchingAudio}>
+              <button onClick={() => handlePremiumFeature(doVoiceExplain, 'Voice Explanation')} className="button" disabled={isFetchingAudio || isRefreshingSubscription || subscriptionNeedsCheck || subscriptionRestricted}>
                 {isFetchingAudio ? <div className="spinner-small-light"></div> : '🎤 Explain in Voice'}
               </button>
             )}
@@ -218,7 +227,7 @@ function ResultsPage({ response, backendUrl, user, token, anonymousId, language 
             <button
               onClick={() => handlePremiumFeature(() => handleExport('docx'), 'Export to Word')}
               className="button secondary-button"
-              disabled={exportState.docx.status === 'queuing' || exportState.docx.status === 'polling'}
+              disabled={exportState.docx.status === 'queuing' || exportState.docx.status === 'polling' || isRefreshingSubscription || subscriptionNeedsCheck || subscriptionRestricted}
             >
               {(exportState.docx.status === 'queuing' || exportState.docx.status === 'polling')
                 ? <><div className="spinner-small-dark"></div> Generating document…</>
@@ -239,7 +248,7 @@ function ResultsPage({ response, backendUrl, user, token, anonymousId, language 
             <button
               onClick={() => handlePremiumFeature(() => handleExport('pdf'), 'Export to PDF')}
               className="button secondary-button"
-              disabled={exportState.pdf.status === 'queuing' || exportState.pdf.status === 'polling'}
+              disabled={exportState.pdf.status === 'queuing' || exportState.pdf.status === 'polling' || isRefreshingSubscription || subscriptionNeedsCheck || subscriptionRestricted}
             >
               {(exportState.pdf.status === 'queuing' || exportState.pdf.status === 'polling')
                 ? <><div className="spinner-small-dark"></div> Generating document…</>
