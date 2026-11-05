@@ -58,7 +58,7 @@ npm run build
 
 The new root Blueprint serves `build/` as a Render static site with an SPA rewrite to `/index.html`; it does not publish the React development server. The API is a separate origin. Keep the configured backend URL and backend CORS/frontend URL consistent. Free API cold starts can delay the first request; the static frontend remains separately hosted. See [Render Free behavior](https://render.com/docs/free).
 
-The deployed production build serves the new API origin. Actual cloud API tests passed existing-account login, image homework, speech, PDF/DOCX and Stripe TEST transitions. The owner confirmed Google browser login. Resend's sender domain is verified and mail configuration is deployed; new email registration is ready for receipt/confirmation testing. Hosted Checkout remains a separate browser acceptance step; see the deployment guide.
+The deployed production build serves the new API origin. Actual cloud API tests passed existing-account login, image homework, speech, PDF/DOCX and Stripe TEST transitions. The owner confirmed Google login and the complete new-email registration flow: receipt, confirmation link and password login. Resend's sender domain is verified and mail configuration is deployed. Hosted Checkout remains a separate browser acceptance step; see the deployment guide.
 
 ## Main code paths
 
