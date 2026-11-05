@@ -10,7 +10,8 @@ import { okaidia } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import 'katex/dist/katex.min.css';
 import './ResultsPage.css';
 import { hasSubscriptionAccess } from '../utils/subscription';
-import { emptyExportJob, exportExpiry, restoreExportState } from '../utils/exportState';
+import { emptyExportJob, restoreExportState, persistExportState, isPendingExport, createExportRunner } from '../utils/exportState';
+import ConceptExplanation from './ConceptExplanation';
 
 // This component remains unchanged and is perfectly fine.
 const CodeBlock = ({ inline, className, children }) => {
@@ -33,56 +34,45 @@ const CodeBlock = ({ inline, className, children }) => {
 // This helper is good. Keep it.
 const getExportButtonText = (status) => {
     switch (status) {
-        case 'queuing': return 'Queuing...';
-        case 'polling': return 'Processing...';
+        case 'queuing': return 'Starting export...';
+        case 'polling': return 'Generating document...';
         default: return 'Export'; // For 'idle' or 'failed'
     }
 }
 
 // --- NEW HELPER: Logic to load and validate state from sessionStorage ---
-function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubscribe, audioCache, setAudioCache, isBottomNavVisible }) {
+function ResultsPage({ response, backendUrl, user, token, anonymousId, language = 'en', onRequestLogin, onSubscribe, audioCache, setAudioCache, isBottomNavVisible }) {
   // --- MODIFIED: useState now uses our helper to load from sessionStorage on initial render ---
   const [exportState, setExportState] = useState(() => restoreExportState(
     sessionStorage.getItem('exportState'), response?.reply1 || '', user?.id || null));
 
-  // --- NEW: This effect saves the state to sessionStorage whenever it changes ---
-  useEffect(() => {
-    const stateToStore = {};
-    Object.keys(exportState).forEach(format => {
-        const job = exportState[format];
-        // We only store states that are worth remembering across a refresh.
-        if (job.status === 'completed' || job.status === 'failed') {
-            stateToStore[format] = job;
-        } else {
-            // Don't save 'queuing' or 'polling' states, they should reset to idle on a refresh.
-            stateToStore[format] = { status: 'idle', jobId: null, downloadUrl: null, error: null };
-        }
-    });
-    sessionStorage.setItem('exportState', JSON.stringify({
-      sourceText: response?.reply1 || '', ownerId: user?.id || null, jobs: stateToStore,
-    }));
-  }, [exportState, response, user?.id]);
+  const exportStateRef = useRef(exportState);
+  const pollingRefs = useRef({});
+  const saveExportState = useCallback(next => {
+    exportStateRef.current = next;
+    persistExportState(sessionStorage, next, response?.reply1 || '', user?.id || null);
+    setExportState(next);
+  }, [response?.reply1, user?.id]);
 
   useEffect(() => {
     const deadlines = Object.values(exportState).filter(job => job.status === 'completed').map(job => job.expiresAt);
     if (!deadlines.length) return undefined;
-    const timeout = setTimeout(() => setExportState(previous => {
-      const next = { ...previous };
+    const timeout = setTimeout(() => {
+      const next = { ...exportStateRef.current };
       for (const format of ['docx', 'pdf']) {
         if (next[format].status === 'completed' && next[format].expiresAt <= Date.now()) next[format] = emptyExportJob();
       }
-      return next;
-    }), Math.max(0, Math.min(...deadlines) - Date.now()));
+      saveExportState(next);
+    }, Math.max(0, Math.min(...deadlines) - Date.now()));
     return () => clearTimeout(timeout);
-  }, [exportState]);
+  }, [exportState, saveExportState]);
 
   // State for audio logic
   const [audioUrl, setAudioUrl] = React.useState(null);
-  const pollingRefs = useRef({});
   const audioRequestRef = useRef(null);
 
   const hasActiveSubscription = user && hasSubscriptionAccess(user.subscriptionStatus);
-  
+
   const reply1Content = (response?.reply1 && typeof response.reply1 === 'string') ? response.reply1 : "";
   const reply2Content = (response?.reply2 && typeof response.reply2 === 'string') ? response.reply2 : null;
   const markdownToDisplay = reply1Content.trim() !== '' ? reply1Content : "Failed to get a valid AI result.";
@@ -106,85 +96,34 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
     };
   }, [audioBlob]);
 
-  // --- MODIFIED: pollJobStatus now adds an expiration timestamp on completion ---
-  const pollJobStatus = useCallback((jobId, format) => {
-    if (pollingRefs.current[format]) {
-        clearInterval(pollingRefs.current[format]);
-    }
+  const runExport = useCallback((format, job) => {
+    pollingRefs.current[format]?.stop();
+    const runner = createExportRunner({ backendUrl, token, format, markdownText: markdownToExport, job,
+      onUpdate: nextJob => saveExportState({ ...exportStateRef.current, [format]: nextJob }),
+    });
+    pollingRefs.current[format] = runner;
+    runner.start();
+  }, [backendUrl, token, markdownToExport, saveExportState]);
 
-    const intervalId = setInterval(async () => {
-      try {
-        const res = await fetch(`${backendUrl}/api/export/status/${jobId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!res.ok) throw new Error('Status check failed.');
-        
-        const data = await res.json();
-
-        if (data.state === 'completed') {
-          clearInterval(intervalId);
-          const expiresAt = exportExpiry(data.result?.expiresAt);
-          if (!data.result?.downloadUrl || expiresAt <= Date.now()) throw new Error('This export has expired. Please export again.');
-          setExportState(prev => ({
-            ...prev,
-            [format]: { status: 'completed', downloadUrl: data.result.downloadUrl, error: null, expiresAt }
-          }));
-        } else if (data.state === 'expired') {
-          clearInterval(intervalId);
-          setExportState(prev => ({ ...prev, [format]: { ...emptyExportJob(), error: data.message || 'This download has expired. Please export again.' } }));
-        } else if (data.state === 'failed') {
-          clearInterval(intervalId);
-          const message = typeof data.message === 'string' && data.message.trim()
-            ? data.message.trim()
-            : 'Conversion failed on the server. Please try exporting again.';
-          setExportState(prev => ({ ...prev, [format]: { ...prev[format], status: 'failed', error: message } }));
-        }
-      } catch (error) {
-        clearInterval(intervalId);
-        setExportState(prev => ({ ...prev, [format]: { ...prev[format], status: 'failed', error: error.message } }));
+  // Refresh resumes each pending job once, using its original creation key or known job ID.
+  useEffect(() => {
+    const runners = pollingRefs.current;
+    if (token) {
+      for (const format of ['docx', 'pdf']) {
+        const job = exportStateRef.current[format];
+        if (isPendingExport(job)) runExport(format, job);
       }
-    }, 3000);
-
-    pollingRefs.current[format] = intervalId;
-
-    setTimeout(() => {
-        const poller = pollingRefs.current[format];
-        if (poller === intervalId) {
-            clearInterval(poller);
-            setExportState(prev => {
-                if (prev[format].status === 'polling' || prev[format].status === 'queuing') {
-                    return { ...prev, [format]: { ...prev[format], status: 'failed', error: 'Export timed out.' } };
-                }
-                return prev;
-            });
-        }
-    }, 120000);
-
-  }, [backendUrl, token]);
-
-  // Export handling function
-  const handleExport = async (format) => {
-    setExportState(prev => ({ ...prev, [format]: { status: 'queuing', jobId: null, downloadUrl: null, error: null } }));
-    
-    try {
-      const res = await fetch(`${backendUrl}/api/export/${format}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ markdownText: markdownToExport }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to queue export job.');
-      
-      if (data.success && data.jobId) {
-        setExportState(prev => ({ ...prev, [format]: { ...prev[format], status: 'polling', jobId: data.jobId } }));
-        pollJobStatus(data.jobId, format);
-      } else {
-        throw new Error(data.message || 'Server did not return a job ID.');
-      }
-    } catch (error) {
-      console.error(`Export queueing error for ${format}:`, error);
-      setExportState(prev => ({ ...prev, [format]: { status: 'failed', error: error.message } }));
     }
+    return () => { Object.values(runners).forEach(runner => runner.stop()); };
+  }, [runExport, token]);
+
+  const handleExport = format => {
+    if (pollingRefs.current[format]?.running) return;
+    const previous = exportStateRef.current[format];
+    const job = previous.retryable && previous.requestKey
+      ? { ...previous, startedAt: Date.now(), error: null }
+      : { ...emptyExportJob(), requestKey: crypto.randomUUID(), startedAt: Date.now() };
+    runExport(format, job);
   };
 
   // Premium feature gate
@@ -229,21 +168,17 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
       if (audioRequestRef.current === controller) audioRequestRef.current = null;
     }
   };
-  
-  // Cleanup effect for polling intervals
-  useEffect(() => {
-    const currentPollers = pollingRefs.current;
-    return () => {
-      Object.values(currentPollers).forEach(clearInterval);
-      audioRequestRef.current?.abort();
-    };
-  }, []);
+
+  useEffect(() => () => audioRequestRef.current?.abort(), []);
 
   // --- RENDER LOGIC (UNCHANGED) ---
   return (
     <div className="results-page-layout">
       <div className="results-scroll-container">
         {response?.warning && <p role="status" className="error-message">{response.warning}</p>}
+        <ConceptExplanation key={response?.explanationContextId || 'unavailable'}
+          contextId={response?.explanationContextId} backendUrl={backendUrl} token={token}
+          anonymousId={anonymousId} language={response?.language || language}>
         <div className="results-content markdown-body">
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}
@@ -253,10 +188,11 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
             {markdownToDisplay}
           </ReactMarkdown>
         </div>
+        </ConceptExplanation>
       </div>
-      
+
       <div className={`results-action-bar-vertical ${isBottomNavVisible ? 'with-nav' : ''}`}>
-        
+
         {/* Voice Explanation Button & Player */}
         {reply2Content && (
           <div className="action-item-vertical">
@@ -279,20 +215,20 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
               ⬇️ Download Word
             </a>
           ) : (
-            <button 
-              onClick={() => handlePremiumFeature(() => handleExport('docx'), 'Export to Word')} 
-              className="button secondary-button" 
+            <button
+              onClick={() => handlePremiumFeature(() => handleExport('docx'), 'Export to Word')}
+              className="button secondary-button"
               disabled={exportState.docx.status === 'queuing' || exportState.docx.status === 'polling'}
             >
-              {(exportState.docx.status === 'queuing' || exportState.docx.status === 'polling') 
-                ? <div className="spinner-small-dark"></div> 
+              {(exportState.docx.status === 'queuing' || exportState.docx.status === 'polling')
+                ? <><div className="spinner-small-dark"></div> Generating document…</>
                 : `📄 ${getExportButtonText(exportState.docx.status)} to Word`
               }
             </button>
           )}
           {exportState.docx.error && <p className="error-message small-error">{exportState.docx.error}</p>}
         </div>
-        
+
         {/* PDF Button Logic */}
         <div className="action-item-vertical">
           {exportState.pdf.status === 'completed' ? (
@@ -300,13 +236,13 @@ function ResultsPage({ response, backendUrl, user, token, onRequestLogin, onSubs
               ⬇️ Download PDF
             </a>
           ) : (
-            <button 
-              onClick={() => handlePremiumFeature(() => handleExport('pdf'), 'Export to PDF')} 
-              className="button secondary-button" 
+            <button
+              onClick={() => handlePremiumFeature(() => handleExport('pdf'), 'Export to PDF')}
+              className="button secondary-button"
               disabled={exportState.pdf.status === 'queuing' || exportState.pdf.status === 'polling'}
             >
               {(exportState.pdf.status === 'queuing' || exportState.pdf.status === 'polling')
-                ? <div className="spinner-small-dark"></div>
+                ? <><div className="spinner-small-dark"></div> Generating document…</>
                 : `📄 ${getExportButtonText(exportState.pdf.status)} to PDF`
               }
             </button>

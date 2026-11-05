@@ -388,7 +388,8 @@ function App() {
       if (!response.ok) throw new Error(data.message);
       
       // Handle response that may or may not have reply2
-      const newResponse = { reply1: data.reply1, reply2: data.reply2 || null, warning: data.warning || null };
+      const newResponse = { reply1: data.reply1, reply2: data.reply2 || null, warning: data.warning || null,
+        explanationContextId: data.explanationContextId || null, language };
       
       setAiResponse(newResponse);
       saveSnapshot('results', { aiResponse: newResponse });
@@ -480,6 +481,8 @@ function App() {
         backendUrl={BACKEND_URL} 
         user={user} 
         token={token} 
+        anonymousId={getAnonymousId()}
+        language={language}
         onRequestLogin={requestLogin} 
         onSubscribe={handleSubscribe} 
         audioCache={audioCache}

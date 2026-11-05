@@ -1,76 +1,74 @@
 # Homework Help AI web frontend — OpenAI edition
 
-React web client for [Homework Help AI](https://github.com/zhangboz/homework-help-ai). It sends homework images/PDFs and handwriting to the backend, displays Markdown, mathematics and code, plays AI-generated speech, and downloads PDF/DOCX exports. The separate WeChat `frontend/` project is preserved and is outside this web migration.
+React client for [Homework Help AI](https://github.com/zhangboz/homework-help-ai): upload homework images/PDFs, display Markdown/math/code answers, play AI-generated WAV speech, and download PDF/DOCX documents. The separate WeChat `frontend/` project is preserved unchanged. Parent-project/deployment links require access to the private repository.
 
-The parent project and Oracle deployment guide are in a private repository; their links require an authorized GitHub account. This component repository remains independently usable.
+## Status — 2026-11-04
 
-## Current status — 2026-11-04
+The prepared hosting route is a **new Render static site + Render Free API + Neon Free PostgreSQL**. No new cloud resources have been created or deployed and no DNS switch has occurred. The retired Render system remains archived; Oracle is paused after unavailable Phoenix capacity, with no VM created. GCS textbook upload and cloud transcription remain paused.
 
-- The active backend uses OpenAI: two `gpt-6.1-terra` Responses calls for answers and spoken explanation text, a single call for handwriting transcription, and `gpt-realtime-2.1-mini` for WAV speech.
-- Local email/Google login and Stripe TEST subscription flows are restored. Valid `active` or `trialing` subscriptions grant premium access.
-- Oracle deployment is **under testing**, with SSH-only private preview configuration. Local Linux tests passed; Phoenix Always Free capacity is currently unavailable, no VM has been provisioned, and actual ARM64/cloud checks remain pending.
-- The old Render system is **archived and inactive**. This update does not re-enable it or switch the existing domain/DNS.
-- GCS textbook upload and cloud transcription are paused. The admin page reflects the pause; historical database records remain available to authorized administrators.
+The backend uses `gpt-6.1-terra` for homework, transcription and hosted document formatting, and `gpt-realtime-2.1-mini` for speech. The existing `gpt-6-luna` selected-concept feature is preserved in the working tree. Email/Google login and Stripe TEST remain available; valid `active` or `trialing` subscriptions grant premium features. Live charges are not enabled.
 
-See the [project setup and status](https://github.com/zhangboz/homework-help-ai/blob/main/README.md), [backend repository](https://github.com/zhangboz/backend), and [Oracle deployment guide](https://github.com/zhangboz/homework-help-ai/blob/main/deploy/oracle/README.md).
+See the [backend repository](https://github.com/zhangboz/backend) and [Render + Neon deployment guide](https://github.com/zhangboz/homework-help-ai/blob/main/deploy/render/README.md).
 
 ## User flows
 
-1. Upload or capture an image, or choose a PDF; preview and submit it.
-2. Display the returned answer and explanation with Markdown, KaTeX and syntax highlighting. If explanation generation fails, retain the answer and show the warning.
-3. Request AI-generated speech through the backend and play the returned WAV. Speech failure leaves the answer intact.
-4. Queue a PDF or Word export, poll its status, then use the signed download link. Show the backend's safe error explanation on failure and allow retry; expire completed links after the returned deadline.
+1. Upload/capture an image or select a PDF, preview it and submit.
+2. Display the answer and spoken explanation text. If the second step fails, keep the answer and show a warning.
+3. Request AI-generated speech and play the WAV; an audio failure leaves the answer intact.
+4. Create a PDF or Word job, poll for up to ten minutes, and use its signed download link. Pending exports survive a page refresh through `sessionStorage` and resume with the original request key/job ID. A transient status failure does not silently create another paid export.
+5. Select text in a newly generated answer for **ChatGPT explain**. The existing concept flow allows an initial explanation and one follow-up, then offers context export. API restart/expiry clears its in-memory question context, so old results may need regeneration.
 
-The app preserves the current result flow in `sessionStorage`. Email login, email confirmation and Google OAuth remain available independently of the retired Google AI services. Subscription cancellation and resumption use Stripe TEST endpoints; live charges are not enabled.
+The current result flow is saved in `sessionStorage`. Export status, ownership and bytes live in backend PostgreSQL and survive API restarts. Download links expire after 15 minutes; backend file retention is one hour. Word math in the tested export route is readable imagery, not native editable equations. Exports no longer require a local converter or worker.
 
 ## Local development
 
-Use the complete project checkout when starting the entire stack through `backend` scripts:
+Use Node 24 LTS. In the full checkout:
 
 ```powershell
-# In web_frontend
+# web_frontend
 npm ci
-
-# Change to the sibling backend directory
+# sibling backend
 cd ../backend
 npm ci
+npm run local:backup
+npm run db:migrate
 npm run local:start
 npm run local:check
 ```
 
-Alternatively, run this web client separately after starting the backend:
+The launcher runs only API + React. Docker, Redis and Pandoc are unnecessary. Alternatively run `npm start` here after starting the API separately.
 
-```powershell
-npm ci
-npm start
-```
-
-Create an ignored `.env.local` file for public frontend configuration:
+The ignored frontend `.env.local` contains public configuration only:
 
 ```dotenv
 REACT_APP_BACKEND_URL=http://localhost:5000
 REACT_APP_GOOGLE_CLIENT_ID=your_public_google_client_id
 ```
 
-Open [localhost:3000](http://localhost:3000). The backend defaults to `http://localhost:5000`; its Google OAuth callback is `/api/login/auth/google/callback` on the backend origin. Frontend environment values are embedded at build time, so rebuild when the deployed backend URL changes.
+Open [localhost:3000](http://localhost:3000). Google OAuth returns to `/api/login/auth/google/callback` on the backend origin. Rebuild when `REACT_APP_BACKEND_URL` changes because Create React App embeds it at build time.
 
-**Never put `OPENAI_API_KEY`, Stripe secret keys, SMTP passwords or Google client secrets in this repository's environment or browser bundle.** They belong only in the backend. The Google client ID above is public configuration.
+Never place OpenAI keys, Stripe secret keys, mail credentials, database URLs or Google client secrets in frontend configuration. They belong only in the backend; the Google client ID is public.
 
-## Validation and builds
+## Build and deployment
 
 ```powershell
 npm test -- --watchAll=false --runInBand
 npm run build
 ```
 
-Production serves the generated `build/` assets through a web server. The Oracle configuration uses Caddy to serve those assets and proxy `/api/*`; it does not publish the React development server. Public release remains blocked on actual ARM64/cloud validation and complete backend TeX filesystem isolation. Keep the current Oracle preview private as described in its deployment guide.
+The new root Blueprint serves `build/` as a Render static site with an SPA rewrite to `/index.html`; it does not publish the React development server. The API is a separate origin. Keep the configured backend URL and backend CORS/frontend URL consistent. Free API cold starts can delay the first request; the static frontend remains separately hosted. See [Render Free behavior](https://render.com/docs/free).
+
+The current production build and cloud login/export acceptance must be checked for the selected source revision before release. Existing local restoration results are not proof of a successful new cloud deployment.
 
 ## Main code paths
 
-- `src/App.js`: routing, request flow, authentication and subscription state.
-- `src/components/ResultsPage.js`: Markdown/math/code rendering, speech playback and export job lifecycle.
-- `src/components/AccountPage.js`: account and Stripe TEST subscription actions.
-- `src/components/AdminPage/`: authorized database views and the paused textbook-upload notice.
-- `src/utils/`: shared subscription access rules.
+- `src/App.js`: routing, requests, authentication and subscription state.
+- `src/components/ResultsPage.js`: answer rendering, speech and export lifecycle.
+- `src/components/ConceptExplanation.js`: preserved selected-concept interaction.
+- `src/components/AccountPage.js`: account and Stripe TEST actions.
+- `src/components/AdminPage/`: authorized data views and paused textbook upload.
+- `src/utils/`: subscription access and export-state helpers.
 
-The UI uses React, React Router, Create React App, `react-markdown`, `remark-math`, `rehype-katex`, and `react-syntax-highlighter`. Retain the responsive mobile layout when changing these flows.
+The UI uses React Router, Create React App, `react-markdown`, `remark-math`, `rehype-katex` and `react-syntax-highlighter`. Preserve its responsive mobile layout.
+
+Candidate validation: all 31 React tests and `npm run build` passed. Deployment uses the dedicated `codex/render-neon-free` branch; publishing it does not update the old master-based Render site.
