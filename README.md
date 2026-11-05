@@ -4,11 +4,11 @@ React client for [Homework Help AI](https://github.com/zhangboz/homework-help-ai
 
 ## Status — 2026-11-04
 
-The prepared hosting route is a **new Render static site + Render Free API + Neon Free PostgreSQL**. No new cloud resources have been created or deployed and no DNS switch has occurred. The retired Render system remains archived; Oracle is paused after unavailable Phoenix capacity, with no VM created. GCS textbook upload and cloud transcription remain paused.
+The **new Render static site + Render Free API + Neon Free PostgreSQL** route is deployed for testing at [synapse-openai-web.onrender.com](https://synapse-openai-web.onrender.com). Homepage, JavaScript bundle, API configuration, CORS and SPA fallback passed HTTPS checks. Database restoration is verified. The custom website domain has not been switched. The retired Render system remains archived; Oracle is paused after unavailable Phoenix capacity, with no VM created. GCS textbook upload and cloud transcription remain paused.
 
 The backend uses `gpt-6.1-terra` for homework, transcription and hosted document formatting, and `gpt-realtime-2.1-mini` for speech. The existing `gpt-6-luna` selected-concept feature is preserved in the working tree. Email/Google login and Stripe TEST remain available; valid `active` or `trialing` subscriptions grant premium features. Live charges are not enabled.
 
-See the [backend repository](https://github.com/zhangboz/backend) and [Render + Neon deployment guide](https://github.com/zhangboz/homework-help-ai/blob/main/deploy/render/README.md).
+See the [backend repository](https://github.com/zhangboz/backend) and [Render + Neon deployment guide](https://github.com/zhangboz/homework-help-ai/blob/codex/render-neon-free/deploy/render/README.md).
 
 ## User flows
 
@@ -18,7 +18,7 @@ See the [backend repository](https://github.com/zhangboz/backend) and [Render + 
 4. Create a PDF or Word job, poll for up to ten minutes, and use its signed download link. Pending exports survive a page refresh through `sessionStorage` and resume with the original request key/job ID. A transient status failure does not silently create another paid export.
 5. Select text in a newly generated answer for **ChatGPT explain**. The existing concept flow allows an initial explanation and one follow-up, then offers context export. API restart/expiry clears its in-memory question context, so old results may need regeneration.
 
-The current result flow is saved in `sessionStorage`. Export status, ownership and bytes live in backend PostgreSQL and survive API restarts. Download links expire after 15 minutes; backend file retention is one hour. Word math in the tested export route is readable imagery, not native editable equations. Exports no longer require a local converter or worker.
+The current result flow is saved in `sessionStorage`. Export status, ownership and bytes live in backend PostgreSQL and survive API restarts. Download links expire after 15 minutes; backend file retention is one hour. The cloud Word sample contained native math; other model runs may use equation images. Exports no longer require a local converter or worker.
 
 ## Local development
 
@@ -58,7 +58,7 @@ npm run build
 
 The new root Blueprint serves `build/` as a Render static site with an SPA rewrite to `/index.html`; it does not publish the React development server. The API is a separate origin. Keep the configured backend URL and backend CORS/frontend URL consistent. Free API cold starts can delay the first request; the static frontend remains separately hosted. See [Render Free behavior](https://render.com/docs/free).
 
-The current production build and cloud login/export acceptance must be checked for the selected source revision before release. Existing local restoration results are not proof of a successful new cloud deployment.
+The deployed production build serves the new API origin. Actual cloud API tests passed existing-account login, image homework, speech, PDF/DOCX and Stripe TEST transitions. The owner confirmed Google browser login. Hosted Checkout and real email confirmation remain separate acceptance steps; see the deployment guide. New email registration waits for Resend setup.
 
 ## Main code paths
 
