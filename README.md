@@ -2,11 +2,11 @@
 
 React client for [Homework Help AI](https://github.com/zhangboz/homework-help-ai): upload homework images/PDFs, display Markdown/math/code answers, play AI-generated WAV speech, and download PDF/DOCX documents. The separate WeChat `frontend/` project is preserved unchanged. Parent-project/deployment links require access to the private repository.
 
-## Status — 2026-11-04
+## 已上线 / Live — 2026-11-04
 
-The **new Render static site + Render Free API + Neon Free PostgreSQL** route is deployed for testing at [synapse-openai-web.onrender.com](https://synapse-openai-web.onrender.com). Homepage, JavaScript bundle, API configuration, CORS and SPA fallback passed HTTPS checks. Database restoration is verified. The custom website domain has not been switched. The retired Render system remains archived; Oracle is paused after unavailable Phoenix capacity, with no VM created. GCS textbook upload and cloud transcription remain paused.
+The **Render static site + Render Free API + Neon Free PostgreSQL** deployment is live at [synapse-openai-web.onrender.com](https://synapse-openai-web.onrender.com). Google login and the full email registration/confirmation/login flow are verified; cloud homework, speech and PDF/DOCX checks passed. Homepage, JavaScript bundle, API configuration, CORS and SPA fallback passed HTTPS checks. Database restoration is verified. Billing remains in Stripe TEST mode, Hosted Checkout browser acceptance is outstanding, and the custom website domain has not been switched. The retired Render system remains archived; Oracle is paused after unavailable Phoenix capacity, with no VM created. GCS textbook upload and cloud transcription remain paused.
 
-The backend uses `gpt-6.1-terra` for homework, transcription and hosted document formatting, and `gpt-realtime-2.1-mini` for speech. The existing `gpt-6-luna` selected-concept feature is preserved in the working tree. Email/Google login and Stripe TEST remain available; valid `active` or `trialing` subscriptions grant premium features. Live charges are not enabled.
+The backend uses `gpt-6.1-terra` for homework, transcription and hosted document formatting, and `gpt-realtime-2.1-mini` for speech. The `gpt-6-luna` selected-concept feature is included in this release. Email/Google login and Stripe TEST remain available; valid `active` or `trialing` subscriptions grant premium features. Live charges are not enabled.
 
 See the [backend repository](https://github.com/zhangboz/backend) and [Render + Neon deployment guide](https://github.com/zhangboz/homework-help-ai/blob/codex/render-neon-free/deploy/render/README.md).
 
@@ -71,4 +71,4 @@ The deployed production build serves the new API origin. Actual cloud API tests 
 
 The UI uses React Router, Create React App, `react-markdown`, `remark-math`, `rehype-katex` and `react-syntax-highlighter`. Preserve its responsive mobile layout.
 
-Candidate validation: all 31 React tests and `npm run build` passed. Deployment uses the dedicated `codex/render-neon-free` branch; publishing it does not update the old master-based Render site.
+Release verification: all 31 React tests and `npm run build` passed. Deployment uses the dedicated `codex/render-neon-free` branch; publishing it does not update the old master-based Render site.
